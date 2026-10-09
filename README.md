@@ -6,10 +6,10 @@ Leistung korrigieren, virtuelle Distanz berechnen und als **FIT-Datei** (Indoor 
 
 **App:** https://janphilicoder.github.io/ic5-ride/ (GitHub Pages, Branch `main`, Root)
 
-> **Stand 09.10.2026: die Seite antwortet 404** („Site not found · GitHub Pages"), die Pages-API meldet
-> null Deployments. Wiederherstellen: GitHub → Repo → *Settings* → *Pages* → Source „Deploy from a branch",
-> Branch `main`, Ordner `/ (root)`, speichern. Die leere Datei `.nojekyll` im Root schaltet den
-> Jekyll-Build ab, damit die Dateien 1:1 ausgeliefert werden.
+> **09.10.2026: Die Seite war weg** (404 „Site not found", null Deployments laut API). Ursache war die
+> Pages-Einstellung selbst, nicht der Code und nicht der Force-Push: Source neu auf „Deploy from a branch",
+> Branch `main`, Ordner `/ (root)` gesetzt → Seite lädt wieder. Falls es erneut auftritt, zuerst dort nachsehen
+> (*Settings* → *Pages*). Die leere `.nojekyll` im Root schaltet zusätzlich den Jekyll-Build ab.
 
 ## Bedienung
 1. Brustgurt anlegen (Decathlon HRM Dual, ANT+). Der Puls kommt **ausschließlich** vom Gurt.
@@ -49,6 +49,7 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
 | Auslieferung | GitHub Pages aus Branch `main`, Ordner Root. Alle Verweise in `index.html`, `manifest.webmanifest` und `sw.js` sind **relativ** (`./`, `index.html`, `icon-192.png`), damit die App unter dem Unterpfad `/ic5-ride/` läuft. `.nojekyll` überspringt den Jekyll-Build. |
 | Installation | Web-App-Manifest mit PNG-Icons (192/512, aus `icon.svg` gerendert) + `beforeinstallprompt`-Knopf → Startbildschirm, `display: standalone` |
 | Fallback | Web Bluetooth: FTMS 0x1826, Cycling Power 0x1818, HR 0x180D; Demo-Daten zum Testen |
+| Diagnose | „Bericht kopieren" legt Zustand (Stick, Kanalzahl, gekoppelte Geräte-Nrn., Sender, Rad samt a/b, **Rohleistung → korrigierte Leistung**) und Log in die Zwischenablage – am Rad steht nur das Handy zur Verfügung |
 
 ## Projektstand / Erkenntnisse
 - Konsole: WattRate LCD (2016), ±10 % laut Handbuch, Leistung = f(Bremsposition, Drehzahl). Bremskalibrierung: Startbildschirm, Pfeil-runter + Licht ≥ 3 s.
@@ -63,9 +64,8 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
   unterscheiden, belegt ist das aber nicht – laut Handbuch streut die Konsole ±10 %.
 
 ## Offen
-- [ ] **GitHub Pages wieder einschalten** (Settings → Pages → Branch `main`, Root). Danach prüfen:
-      lädt die Seite, steht „An Uhr senden" darin (= aktuelle Fassung), meldet `sw.js` den Cache `ic5-v5`?
-- [ ] Erster Test am Rad (WebUSB mit CooSpo-Stick, Kanäle, Kopplung)
+- [ ] Erster Test am Rad (WebUSB mit CooSpo-Stick, Kanäle, Kopplung) – im Diagnose-Bereich
+      **„Bericht kopieren"** drücken, der Bericht enthält Stick, Kanalzahl, Kopplung, Roh- und Korrekturwert
 - [ ] a/b sauber bestimmen: Stufentest (je 8 min ~100/130/160 W Display, 85 U/min, Brustgurt) vs. Rennrad
 - [ ] a/b **je Rad** messen und in die Bibliothek eintragen (a, b, cal, n, sd) – erst dann ist die
       Rangliste „genauestes Rad“ aussagekräftig

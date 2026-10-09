@@ -185,6 +185,7 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--dim);ma
       </div>
       <div class="row" style="margin:8px 0">
         <button class="btn small" id="btnDemo">Demo-Daten</button>
+        <button class="btn small" id="btnLogCopy">Bericht kopieren</button>
       </div>
       <pre id="log"></pre>
     </details>
@@ -563,6 +564,45 @@ window.addEventListener("appinstalled", () => $("install").classList.add("hidden
 /* ---------- Log ---------- */
 function log(t){ const l=$("log"); l.textContent = new Date().toLocaleTimeString()+"  "+t+"\n"+l.textContent.slice(0,6000); }
 function warn(t){ $("warn").textContent = t; $("warn").classList.toggle("hidden", !t); }
+
+/* Bericht für die Fehlersuche: Zustand oben, Log darunter. Am Rad steht nur das Handy
+   zur Verfügung – aus einem <pre> lässt sich dort kaum sauber markieren. */
+function logReport(){
+  const d = ant.dev, L = [];
+  L.push("IC5 Ride – Diagnosebericht " + new Date().toLocaleString());
+  L.push("Browser: " + navigator.userAgent);
+  L.push("Stick: " + (d && d.opened
+    ? `${d.manufacturerName||"?"} ${d.productName||"?"} ${d.vendorId.toString(16)}:${d.productId.toString(16)}`
+      + `, ${TX.maxCh === null ? "Kanalzahl unbekannt" : TX.maxCh + " Kanäle"}`
+    : "nicht verbunden"));
+  L.push("Kanäle: " + Object.values(CH).map(c => `${c.name}=${c.devNo || "offen"}`).join(", "));
+  L.push(`Sender: ${TX.on ? "an" : "aus"}, eigene Geräte-Nr. ${TX.devNo}`
+    + (TX.on ? `, ${TX.events} Ereignisse, ${(TX.dist/1000).toFixed(2)} km gesendet` : ""));
+  L.push(`Rad: ${bike.nr === null ? "keines erkannt" : "Rad " + bike.nr + " über " + bike.how}`
+    + ` · a = ${bike.a}, b = ${bike.b} W · ${bike.calibrated ? "kalibriert " + bike.cfg.cal : "nicht kalibriert"}`);
+  L.push(`Einstellungen: FTP ${cfg.ftp} W, Masse ${cfg.mass} kg`);
+  // Roh- und Korrekturwert getrennt: nur so lässt sich a/b gegen die Konsolenanzeige prüfen.
+  L.push(`Quelle: ${live.src || "–"} · Puls von ${live.hrSrc || "–"}`);
+  const r1 = v => v === null || v === undefined ? "–" : Math.round(v);
+  L.push(`Messwerte: roh ${r1(live.pRaw)} W → korrigiert ${live.pRaw === null ? "–" : Math.round(corr(live.pRaw))} W`
+    + ` · ${r1(live.cad)} U/min · ${r1(live.hr)} bpm`);
+  L.push("", "--- Log (neueste Zeile oben) ---", $("log").textContent.trim() || "(leer)");
+  return L.join("\n");
+}
+
+async function copyReport(){
+  const txt = logReport(), b = $("btnLogCopy"), old = "Bericht kopieren";
+  try{
+    await navigator.clipboard.writeText(txt);
+    b.textContent = "Kopiert ✓"; setTimeout(() => b.textContent = old, 2000);
+  }catch(e){
+    // Ohne Clipboard-Erlaubnis: Text markierbar anbieten, damit nichts verloren geht.
+    const t = document.createElement("textarea");
+    t.value = txt; t.style.cssText = "position:fixed;inset:8px;z-index:99;font-size:12px";
+    document.body.appendChild(t); t.select();
+    b.textContent = "Von Hand kopieren"; setTimeout(() => { t.remove(); b.textContent = old; }, 30000);
+  }
+}
 if(!("usb" in navigator) && !("bluetooth" in navigator)) warn("Dieser Browser kann weder USB noch Bluetooth. Bitte Chrome auf Android verwenden und die Seite über https öffnen.");
 
 /* ---------- Live-Zustand (von allen Quellen gefüttert) ---------- */
@@ -966,6 +1006,7 @@ $("btnUsbAll").onclick = () => usbConnect(true);
 $("btnBle").onclick = () => bleConnect(false);
 $("btnBleHr").onclick = () => bleConnect(true);
 $("btnDemo").onclick = demo;
+$("btnLogCopy").onclick = copyReport;
 $("btnTx").onclick = () => TX.on ? txStop() : txStart();
 $("btnRepairPow").onclick = () => antRepair(["pow","fec"]);
 $("btnRepairHr").onclick = () => antRepair(["hr"]);
