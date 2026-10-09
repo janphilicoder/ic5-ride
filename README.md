@@ -59,6 +59,9 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
 - Handy: Samsung S23 (kein natives ANT+) + CooSpo ANT+ USB-Stick über USB-C-OTG.
 - Puls kommt vom Decathlon-Brustgurt (HRM Dual, ANT+ und Bluetooth). Die Konsole als Pulsquelle ist
   bewusst ausgeschlossen: sie zeigt die HF eines beliebigen gekoppelten Gurts in Reichweite an.
+- Die App greift **auf kein Netz zu**: keine externen Skripte, kein `fetch` außer dem Service-Worker-Cache
+  der eigenen Dateien. Alles – Radnummern, Kalibrierung, FTP, laufende Fahrt – liegt im `localStorage` des
+  Handys und verlässt das Gerät nie. Damit gibt es im Repo auch nichts Geheimzuhaltendes.
 - Stand 09.10.2026: **kein Rad einzeln kalibriert.** Alle Räder rechnen mit dem Standard a = 1,5, b = 0;
   die Bibliothek ist angelegt (Rad 1–12), die Messwerte fehlen noch. Die Räder sollten sich wenig
   unterscheiden, belegt ist das aber nicht – laut Handbuch streut die Konsole ±10 %.
@@ -72,7 +75,12 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
 - [ ] Zahl der Räder im Verein prüfen – die Bibliothek ist mit 1–12 vorbelegt, neue Nummern legt die App
       beim Eintragen selbst an
 - [ ] Senden an die Uhr am Rad prüfen (koppelt die Venu 3 den Kanal, stimmen Leistung/Distanz, hält der Stick 4 Kanäle)
-- [ ] Automatischer Upload zu Strava (OAuth; Client-Secret nicht ins Repo) / Garmin Connect (ggf. über Raspberry Pi)
+- ~~Automatischer Upload zu Strava / Garmin Connect~~ – **verworfen (09.10.2026).** Die Uhr zeichnet über
+  den FE-C-Sender selbst auf und synchronisiert von sich aus nach Garmin Connect, von dort weiter zu Strava.
+  Ein Upload aus der App wäre ein dritter Weg für dieselbe Fahrt. Damit bleibt die App ohne jeden
+  Netzwerkzugriff – kein OAuth, kein Client-Secret, nichts, was geheim bleiben müsste.
+  *Wieder aufgreifen nur, falls das Senden an die Uhr am Rad scheitert; dann genügt aber der FIT-Export
+  mit Hochladen von Hand.*
 - [ ] Strukturierte Workouts mit Leistungszielen
 
 ## Werkzeuge
