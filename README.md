@@ -59,6 +59,24 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
 - Handy: Samsung S23 (kein natives ANT+) + CooSpo ANT+ USB-Stick über USB-C-OTG.
 - Puls kommt vom Decathlon-Brustgurt (HRM Dual, ANT+ und Bluetooth). Die Konsole als Pulsquelle ist
   bewusst ausgeschlossen: sie zeigt die HF eines beliebigen gekoppelten Gurts in Reichweite an.
+- **09.10.2026, erster Test am Rad – das Senden an die Uhr funktioniert.** Fahrt 19:08, 50 min.
+  Leistung in der FIT der App und in der Aufzeichnung der Venu 3 (über Strava geprüft) sind
+  **punktweise identisch**: Median des Verhältnisses 1,000, in 33 von 100 Stichproben bitgleich,
+  Abweichungen nur dort, wo Stravas Glättung interpoliert. Die Uhr bekommt also die **korrigierte**
+  Leistung, nicht die rohe. Trittfrequenz und Puls stimmen ebenso (Ø 157,6 bpm App / 158,1 bpm Uhr).
+  Drei Einschränkungen dabei:
+  1. **Die Uhr übernimmt Geschwindigkeit und Distanz nicht** – in beiden Uhr-Aktivitäten ist die
+     Geschwindigkeit durchgehend 0 und die Distanz 0, obwohl Seite 0x10 beides sendet. Garmin verwirft
+     die Trainer-Geschwindigkeit bei Indoor-Aktivitäten. Die virtuelle Distanz (hier 25,1 km) gibt es
+     also nur in der FIT-Datei der App.
+  2. **Die Uhr zerlegte die Fahrt in zwei Aktivitäten** (1733 s + 1042 s = 2775 s gegenüber 3016 s in
+     der App); dazwischen fehlen rund 4 min. Ursache noch offen – versehentlicher Stopp oder
+     Kanalabbruch. Beim nächsten Mal auf die Uhr achten.
+  3. Der App fehlten 43 von 3016 Pulswerten (Gurt-Aussetzer), der Uhr nicht.
+- **Die Konsole bietet BLE und ANT im Menü an.** Damit ist der Dongle für den *Empfang* womöglich
+  entbehrlich (Web-Bluetooth-Fallback ist eingebaut) – zum *Senden an die Uhr* aber nicht: Web Bluetooth
+  kennt im Browser keine Peripheral-Rolle, das Handy kann per BLE kein Trainer sein. Noch zu prüfen,
+  ob die Konsole Standardprofile (0x1826 FTMS / 0x1818 Cycling Power) oder nur Proprietäres sendet.
 - Die App greift **auf kein Netz zu**: keine externen Skripte, kein `fetch` außer dem Service-Worker-Cache
   der eigenen Dateien. Alles – Radnummern, Kalibrierung, FTP, laufende Fahrt – liegt im `localStorage` des
   Handys und verlässt das Gerät nie. Damit gibt es im Repo auch nichts Geheimzuhaltendes.
@@ -67,8 +85,10 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
   unterscheiden, belegt ist das aber nicht – laut Handbuch streut die Konsole ±10 %.
 
 ## Offen
-- [ ] Erster Test am Rad (WebUSB mit CooSpo-Stick, Kanäle, Kopplung) – im Diagnose-Bereich
-      **„Bericht kopieren"** drücken, der Bericht enthält Stick, Kanalzahl, Kopplung, Roh- und Korrekturwert
+- [x] ~~Erster Test am Rad~~ – 09.10.2026 gelaufen, Senden an die Uhr bestätigt (s. Projektstand)
+- [ ] Klären, warum die Uhr die Fahrt in zwei Aktivitäten zerlegt hat (rund 4 min fehlen)
+- [ ] Prüfen, ob die Konsole über BLE Standardprofile sendet (0x1826 / 0x1818) – dann ginge der
+      Empfang ohne Dongle. Zum Senden an die Uhr bleibt der Dongle in jedem Fall nötig.
 - [ ] a/b sauber bestimmen: Stufentest (je 8 min ~100/130/160 W Display, 85 U/min, Brustgurt) vs. Rennrad
 - [ ] a/b **je Rad** messen und in die Bibliothek eintragen (a, b, cal, n, sd) – erst dann ist die
       Rangliste „genauestes Rad“ aussagekräftig
