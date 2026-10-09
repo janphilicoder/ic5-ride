@@ -6,6 +6,11 @@ Leistung korrigieren, virtuelle Distanz berechnen und als **FIT-Datei** (Indoor 
 
 **App:** https://janphilicoder.github.io/ic5-ride/ (GitHub Pages, Branch `main`, Root)
 
+> **Stand 09.10.2026: die Seite antwortet 404** („Site not found · GitHub Pages"), die Pages-API meldet
+> null Deployments. Wiederherstellen: GitHub → Repo → *Settings* → *Pages* → Source „Deploy from a branch",
+> Branch `main`, Ordner `/ (root)`, speichern. Die leere Datei `.nojekyll` im Root schaltet den
+> Jekyll-Build ab, damit die Dateien 1:1 ausgeliefert werden.
+
 ## Bedienung
 1. Brustgurt anlegen (Decathlon HRM Dual, ANT+). Der Puls kommt **ausschließlich** vom Gurt.
 2. Rad antreten → ANT+-Stick per USB-C-OTG ans Handy → App → „Verbinden“.
@@ -41,6 +46,7 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
 | Export | eigener FIT-Encoder: file_id, event, record, lap, session (sport 2 / sub_sport 6), activity |
 | An die Uhr senden | Stick zusätzlich als **ANT+-Master** (Kanal 3, Gerätetyp 17 FE-C, Übertragungstyp 5, 4 Hz). Gesendet werden die **korrigierte** Leistung und die **virtuelle** Geschwindigkeit, Seiten 0x10/0x19 im Wechsel, alle 66 Nachrichten 0x50/0x51. Takt kommt von EVENT_TX, nicht von `setInterval`. Eigene Geräte-Nr. wird gewürfelt und gespeichert; koppelt der Empfangskanal sie versehentlich, wird sie abgelehnt (sonst liefe die Korrektur im Kreis). |
 | Robustheit | Fahrt alle 10 s in localStorage, Wiederherstellung nach Neuladen; Wake Lock; Service Worker (offline) |
+| Auslieferung | GitHub Pages aus Branch `main`, Ordner Root. Alle Verweise in `index.html`, `manifest.webmanifest` und `sw.js` sind **relativ** (`./`, `index.html`, `icon-192.png`), damit die App unter dem Unterpfad `/ic5-ride/` läuft. `.nojekyll` überspringt den Jekyll-Build. |
 | Installation | Web-App-Manifest mit PNG-Icons (192/512, aus `icon.svg` gerendert) + `beforeinstallprompt`-Knopf → Startbildschirm, `display: standalone` |
 | Fallback | Web Bluetooth: FTMS 0x1826, Cycling Power 0x1818, HR 0x180D; Demo-Daten zum Testen |
 
@@ -57,6 +63,8 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
   unterscheiden, belegt ist das aber nicht – laut Handbuch streut die Konsole ±10 %.
 
 ## Offen
+- [ ] **GitHub Pages wieder einschalten** (Settings → Pages → Branch `main`, Root). Danach prüfen:
+      lädt die Seite, steht „An Uhr senden" darin (= aktuelle Fassung), meldet `sw.js` den Cache `ic5-v5`?
 - [ ] Erster Test am Rad (WebUSB mit CooSpo-Stick, Kanäle, Kopplung)
 - [ ] a/b sauber bestimmen: Stufentest (je 8 min ~100/130/160 W Display, 85 U/min, Brustgurt) vs. Rennrad
 - [ ] a/b **je Rad** messen und in die Bibliothek eintragen (a, b, cal, n, sd) – erst dann ist die
