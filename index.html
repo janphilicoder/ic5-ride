@@ -136,6 +136,11 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--dim);ma
       <div class="lbl">Puls – nur Brustgurt <small id="sHr">–</small></div>
       <button class="btn small" id="btnRepairHr">Neu koppeln</button>
     </div>
+    <div class="src">
+      <i class="dot" id="dTx"></i>
+      <div class="lbl">An Uhr senden <small id="sTx">aus</small></div>
+      <button class="btn small" id="btnTx">Einschalten</button>
+    </div>
     <div class="live">
       <div><span>Watt</span><b class="num" id="lP">–</b></div>
       <div><span>U/min</span><b class="num" id="lC">–</b></div>
@@ -316,6 +321,55 @@ const Core = (() => {
              calibrated: !!(b && b.cal), uncert: bikeUncert(b), cfg: b };
   }
 
+  /* ---------- ANT+ FE-C senden: die App als Indoor-Trainer für Uhr/Edge ----------
+     Gegenstück zu parseFecPage: dieselben Seiten, nur erzeugt statt gelesen.
+     Gesendet wird die *korrigierte* Leistung und die virtuelle Geschwindigkeit,
+     damit Uhr und App dieselbe Wahrheit aufzeichnen. */
+  const FE_TRAINER = 25;                              // Equipment Type: Trainer / stationäres Rad
+  // Seitenfolge: abwechselnd 0x10/0x19, alle 66 Nachrichten einmal Hersteller- und Produktseite.
+  function feNextPage(n){ const k = n % 66; return k === 64 ? 0x50 : k === 65 ? 0x51 : (k % 2 ? 0x19 : 0x10); }
+  // v: {elapsedMs, distM, speedMs, hr, cad, power, events, accPower, inUse}
+  function feBuildPage(page, v){
+    const b = [0,0,0,0,0,0,0,0];
+    const state = v.inUse ? 3 : 2;                    // 3 = IN_USE, 2 = READY
+    if(page === 0x10){
+      const spd = (v.speedMs == null) ? 0xFFFF : Math.max(0, Math.min(0xFFFE, Math.round(v.speedMs*1000)));
+      const hrOk = v.hr > 0;
+      b[0] = 0x10; b[1] = FE_TRAINER;
+      b[2] = Math.floor(v.elapsedMs/250) & 0xFF;      // 0,25 s, Überlauf bei 64 s
+      b[3] = Math.floor(v.distM) & 0xFF;              // 1 m, Überlauf bei 256 m
+      b[4] = spd & 0xFF; b[5] = spd >> 8;
+      b[6] = hrOk ? Math.min(254, Math.round(v.hr)) : 0xFF;
+      // Fähigkeiten: Bit 0–1 HF-Quelle (3 = ANT+), Bit 2 Distanz wird gesendet, Bit 3 virtuelle Geschw.
+      // Bit 3 bleibt 0: die Uhr soll die Geschwindigkeit für die Distanz verwenden.
+      b[7] = (state << 4) | (hrOk ? 0x03 : 0x00) | 0x04;
+    }else if(page === 0x19){
+      const p = Math.max(0, Math.min(4094, Math.round(v.power)));
+      b[0] = 0x19;
+      b[1] = v.events & 0xFF;
+      b[2] = (v.cad > 0) ? Math.min(254, Math.round(v.cad)) : 0xFF;
+      b[3] = v.accPower & 0xFF; b[4] = (v.accPower >> 8) & 0xFF;
+      b[5] = p & 0xFF;
+      b[6] = (p >> 8) & 0x0F;                         // obere Nibble: Trainer-Status, alles 0
+      b[7] = state << 4;                              // untere Nibble: keine Zielvorgabe
+    }else if(page === 0x50){                          // Hersteller: 255 = Development
+      b[0] = 0x50; b[1] = 0xFF; b[2] = 0xFF; b[3] = 1; b[4] = 0xFF; b[5] = 0x00; b[6] = 1; b[7] = 0;
+    }else if(page === 0x51){                          // Produkt: SW 1, keine Seriennummer
+      b[0] = 0x51; b[1] = 0xFF; b[2] = 0xFF; b[3] = 1; b[4] = 0xFF; b[5] = 0xFF; b[6] = 0xFF; b[7] = 0xFF;
+    }
+    return b;
+  }
+  // Ereigniszähler und kumulierte Leistung – die Uhr rechnet daraus das Mittel zurück,
+  // genau wie makePowerCalc() es beim IC5 tut. Überlauf 8 bzw. 16 Bit wie in der Norm.
+  function makeFeAccum(){
+    let events = 0, accPower = 0;
+    return function(power){
+      events = (events + 1) & 0xFF;
+      accPower = (accPower + Math.max(0, Math.round(power))) & 0xFFFF;
+      return { events, accPower };
+    };
+  }
+
   /* ---------- Physik: virtuelle Geschwindigkeit in der Ebene ---------- */
   // P = v·(½·ρ·cwA·v² + cr·m·g)  -> v per Bisektion (f ist streng monoton)
   function virtualSpeed(P, mass, cda=0.32, crr=0.004, rho=1.2, g=9.81){
@@ -413,6 +467,7 @@ const Core = (() => {
   }
 
   return { ANT_KEY, antMsg, antParse, makePowerCalc, parsePowerPage, parseFecPage, parseHrPage, makeHrCalc,
+           FE_TRAINER, feNextPage, feBuildPage, makeFeAccum,
            BIKE_DEF, BIKES_SEED, bikeNrFromName, bikeUncert, bikeRanking, resolveBike,
            virtualSpeed, ZONES, zoneOf, np, bestAvg, summarize, fitEncode, crc16, FIT_EPOCH };
 })();
@@ -535,6 +590,57 @@ const CH = {
 };
 const powCalc = { 0: C.makePowerCalc(), 1: C.makePowerCalc() };
 const hrCalc = C.makeHrCalc();
+
+/* ---------- Senden: die App als ANT+-Trainer (FE-C) für Uhr / Edge ----------
+   Kanal 3 als Master. Eigene Geräte-Nr. einmal würfeln und behalten, damit die Uhr
+   das Gerät wiedererkennt – und damit der eigene Empfangskanal sie ausschließen kann. */
+const TX = { ch:3, type:17, transType:5, period:8192, on:false, n:0, t0:0, tLast:0, dist:0,
+             events:0, accPower:0, maxCh:null, devNo: lsGet("txDev", 0) };
+if(!TX.devNo){ TX.devNo = 300 + Math.floor(Math.random()*64000); lsSet("txDev", TX.devNo); }
+const feAccum = C.makeFeAccum();
+
+async function txStart(){
+  if(!ant.dev || !ant.dev.opened){ warn("Erst den ANT+-Stick verbinden."); return; }
+  if(TX.on) return;
+  if(TX.maxCh !== null && TX.maxCh < TX.ch + 1){ warn(`Der Stick bietet nur ${TX.maxCh} Kanäle – zum Senden wird ein vierter gebraucht.`); return; }
+  if(!lsGet("antFec", 0) && !lsGet("antPow", 0)) log("Hinweis: Rad noch nicht fest gekoppelt – erst koppeln, dann senden.");
+  await antSend(0x42, [TX.ch, 0x10, 0x00]);                               // Master, Netzwerk 0
+  await antSend(0x51, [TX.ch, TX.devNo & 0xFF, TX.devNo >> 8, TX.type, TX.transType]);
+  await antSend(0x43, [TX.ch, TX.period & 0xFF, TX.period >> 8]);
+  await antSend(0x45, [TX.ch, 57]);                                       // 2457 MHz
+  await antSend(0x4B, [TX.ch]);
+  TX.on = true; TX.n = 0; TX.t0 = Date.now(); TX.tLast = Date.now(); TX.dist = 0;
+  txSend();                                   // erste Nutzlast; danach taktet EVENT_TX den Rest
+  renderTx(); log(`FE-C-Sender an, Gerät #${TX.devNo} – auf der Uhr als Smart-Trainer suchen`);
+}
+
+async function txStop(){
+  TX.on = false;
+  if(ant.dev && ant.dev.opened){ await antSend(0x4C, [TX.ch]); await sleep(200); await antSend(0x41, [TX.ch]); }
+  renderTx(); log("FE-C-Sender aus");
+}
+
+// Wird von EVENT_TX gerufen: der Stick hat gesendet und will die nächste Nutzlast.
+// Dadurch läuft der Takt am Funk, nicht an setInterval – kein Versatz, kein Nachladen.
+function txSend(){
+  if(!TX.on || !ant.dev || !ant.dev.opened) return;
+  const now = Date.now();
+  const raw = fresh(live.pRaw, live.pT) ?? 0, cad = fresh(live.cad, live.cT) ?? 0;
+  const p = corr(raw), spd = C.virtualSpeed(p, cfg.mass);
+  TX.dist += spd * (now - TX.tLast)/1000; TX.tLast = now;
+  const page = C.feNextPage(TX.n++);
+  if(page === 0x19){ const a = feAccum(p); TX.events = a.events; TX.accPower = a.accPower; }
+  const b = C.feBuildPage(page, { elapsedMs: now - TX.t0, distM: TX.dist, speedMs: spd,
+    hr: fresh(live.hr, live.hT, 6000), cad, power: p,
+    events: TX.events, accPower: TX.accPower, inUse: raw > 0 || cad > 0 });
+  ant.dev.transferOut(ant.epOut.endpointNumber, C.antMsg(0x4E, [TX.ch, ...b])).catch(e => log("TX: "+e.message));
+}
+
+function renderTx(){
+  $("dTx").className = "dot " + (TX.on ? "on" : "");
+  $("sTx").textContent = TX.on ? `sendet als Trainer #${TX.devNo}` : "aus";
+  $("btnTx").textContent = TX.on ? "Ausschalten" : "Einschalten";
+}
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 
 async function antSend(id, data){ await ant.dev.transferOut(ant.epOut.endpointNumber, C.antMsg(id, data)); await sleep(40); }
@@ -588,6 +694,7 @@ async function readLoop(){
 
 async function antInit(){
   await antSend(0x4A, [0x00]); await sleep(600);              // Reset
+  await antSend(0x4D, [0x00, 0x54]);                            // Fähigkeiten abfragen (Zahl der Kanäle)
   await antSend(0x46, [0x00, ...C.ANT_KEY]);                    // Netzwerk-Schlüssel
   for(const [n, c] of Object.entries(CH)) await antOpenChannel(+n);
 }
@@ -635,6 +742,9 @@ function antHandle(m){
     const n = d[0], c = CH[n], dn = d[1] | d[2]<<8, type = d[3];
     if(c && dn){
       if(type !== c.type){ log(`${c.name}: Gerät #${dn} hat Typ ${type}, erwartet ${c.type} – ignoriert`); return; }
+      // Rückkopplung verhindern: unser eigener FE-C-Sender darf nicht als Rad gekoppelt werden,
+      // sonst liefe die korrigierte Leistung im Kreis und würde erneut korrigiert.
+      if(dn === TX.devNo){ log(`${c.name}: #${dn} ist der eigene Sender – nicht koppeln`); antRepair([c.name]); return; }
       c.devNo = dn; lsSet(c.key, dn);
       log(`${c.name}: Gerät #${dn} (Typ ${type}) gespeichert`);
       if(c.name === "hr") setSrcText(n, `Brustgurt #${dn} gepinnt`, "on");
@@ -642,8 +752,13 @@ function antHandle(m){
     }
   }else if(m.id === 0x40){                                      // Kanal-Ereignis / Antwort
     const n = d[0], code = d[2];
-    if(d[1] === 0x01 && code === 0x07 && CH[n]){ log(`Kanal ${n} geschlossen – öffne neu`); antOpenChannel(n); }
+    if(d[1] === 0x01 && code === 0x03 && n === TX.ch){ txSend(); }   // gesendet -> nächste Nutzlast
+    else if(d[1] === 0x01 && code === 0x07 && CH[n]){ log(`Kanal ${n} geschlossen – öffne neu`); antOpenChannel(n); }
     else if(d[1] !== 0x01 && code !== 0) log(`ANT Antwort auf 0x${d[1].toString(16)} Kanal ${n}: Code ${code}`);
+  }else if(m.id === 0x54){                                      // Fähigkeiten des Sticks
+    TX.maxCh = d[0];
+    log(`Stick: ${d[0]} Kanäle, ${d[1]} Netzwerke`);
+    if(d[0] < TX.ch + 1) warn(`Der Stick bietet nur ${d[0]} Kanäle – zum Senden an die Uhr wird ein vierter gebraucht.`);
   }else if(m.id === 0x6F){ log("ANT-Stick bereit"); }
 }
 
@@ -851,6 +966,7 @@ $("btnUsbAll").onclick = () => usbConnect(true);
 $("btnBle").onclick = () => bleConnect(false);
 $("btnBleHr").onclick = () => bleConnect(true);
 $("btnDemo").onclick = demo;
+$("btnTx").onclick = () => TX.on ? txStop() : txStart();
 $("btnRepairPow").onclick = () => antRepair(["pow","fec"]);
 $("btnRepairHr").onclick = () => antRepair(["hr"]);
 $("btnStart").onclick = () => startRide(null);
@@ -871,6 +987,7 @@ if(old && old.S && old.S.length > 10){
   $("btnRecDrop").onclick = () => { clearPersist(); $("recover").classList.add("hidden"); };
 }
 updateBike();
+renderTx();
 usbAuto();
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script>

@@ -16,6 +16,28 @@ ok(Math.abs(pc(253, (65500+3*180) & 0xFFFF, 170, 250) - 180) < 1e-9, "kumulierte
 ok(pc(253, (65500+3*180) & 0xFFFF, 170, 4000) === 0, "Stillstand -> 0 W");
 const fe = C.parseFecPage([0x19,1,88,0x34,0x12,0x2C,0x31,0]); ok(fe.inst === 0x12C && fe.cad === 88, "FE-C Seite 0x19");
 
+// ---- FE-C senden: die App als Trainer ----
+ok(C.feNextPage(0) === 0x10 && C.feNextPage(1) === 0x19 && C.feNextPage(64) === 0x50 && C.feNextPage(65) === 0x51
+   && C.feNextPage(66) === 0x10, "Seitenfolge 0x10/0x19 mit 0x50/0x51 alle 66");
+const g = C.feBuildPage(0x10, {elapsedMs:10000, distM:300.7, speedMs:9.4, hr:142, cad:85, power:200, events:3, accPower:600, inUse:true});
+ok(g[0] === 0x10 && g[1] === 25, "Seite 0x10: Nummer und Equipment Type Trainer");
+ok(g[2] === 40 && g[3] === 44, "Zeit in 0,25 s (40) und Distanz mod 256 (44)");
+ok((g[4] | g[5]<<8) === 9400 && g[6] === 142, "Geschwindigkeit 0,001 m/s und HF");
+ok((g[7] >> 4) === 3 && (g[7] & 0x0F) === 0x07, "Zustand IN_USE, HF-Quelle ANT+ und Distanz-Bit");
+const gl = C.feBuildPage(0x10, {elapsedMs:0, distM:0, speedMs:0, hr:null, cad:0, power:0, events:0, accPower:0, inUse:false});
+ok(gl[6] === 0xFF && (gl[7] >> 4) === 2 && (gl[7] & 0x0F) === 0x04, "ohne Gurt HF ungültig, Zustand READY");
+const sp = C.feBuildPage(0x19, {power:1234, cad:92, events:250, accPower:65000, inUse:true});
+ok(sp[0] === 0x19 && sp[1] === 250 && sp[2] === 92, "Seite 0x19: Nummer, Ereigniszähler, Trittfrequenz");
+ok((sp[3] | sp[4]<<8) === 65000, "kumulierte Leistung 16 Bit");
+ok((sp[5] | (sp[6] & 0x0F)<<8) === 1234 && (sp[6] >> 4) === 0, "Leistung über 12 Bit, Trainer-Status 0");
+const z = C.feBuildPage(0x19, {power:0, cad:0, events:0, accPower:0, inUse:false});
+ok(z[2] === 0xFF && (z[7] >> 4) === 2, "Stillstand: Trittfrequenz ungültig, Zustand READY");
+const fa = C.makeFeAccum();
+fa(100); const a2 = fa(200);
+ok(a2.events === 2 && a2.accPower === 300, "Ereigniszähler und Summe");
+let last; for(let i=0;i<300;i++) last = fa(1000);
+ok(last.events === ((302) & 0xFF) && last.accPower === ((300 + 300000) & 0xFFFF), "Überlauf 8 bzw. 16 Bit");
+
 // ---- Puls: nur echte Schläge des Brustgurts ----
 const hp = C.parseHrPage([0x84,0xFF,0xFF,0xFF,0x10,0x27,42,145]);
 ok(hp.page === 0x04 && hp.beats === 42 && hp.hr === 145, "HRM-Seite: Seitennr. ohne Toggle-Bit, Schlagzähler, HF");

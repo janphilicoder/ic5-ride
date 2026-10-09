@@ -15,6 +15,13 @@ Leistung korrigieren, virtuelle Distanz berechnen und als **FIT-Datei** (Indoor 
 5. Modus wählen (Freie Fahrt / Rampentest) → Start → Beenden → „FIT-Datei speichern“.
 6. Upload: connect.garmin.com → Daten importieren; strava.com/upload/select.
 
+### Statt Import: direkt auf der Uhr aufzeichnen
+„An Uhr senden“ einschalten → die App sendet die korrigierte Leistung als ANT+-Smart-Trainer.
+Auf der Uhr (Venu 3, Edge 540) unter *Sensoren & Zubehör → Hinzufügen → Smart-Trainer* koppeln,
+dann dort eine Indoor-Aktivität starten. Die Uhr bekommt Leistung, Trittfrequenz, Geschwindigkeit
+und Distanz; den Puls misst sie selbst. Die FIT-Datei der App bleibt als Sicherung bestehen –
+nur eine von beiden hochladen, sonst liegt die Fahrt doppelt in Garmin Connect.
+
 ### Aufs Handy legen (ohne Laptop)
 Seite in Chrome öffnen → Karte „Aufs Handy legen“ → **Installieren** (oder Chrome-Menü ⋮ →
 „App installieren“). Danach startet sie vom Startbildschirm ohne Adresszeile und dank Service Worker
@@ -32,6 +39,7 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
 | Auswertung | 7 Coggan-Zonen, NP (30-s-Mittel⁴), IF, TSS, Bestwerte 1/5/20 min |
 | Rampentest | Start/Schritt einstellbar (Standard 100 W, +20 W/min), FTP = 0,75 × beste 1-min-Leistung |
 | Export | eigener FIT-Encoder: file_id, event, record, lap, session (sport 2 / sub_sport 6), activity |
+| An die Uhr senden | Stick zusätzlich als **ANT+-Master** (Kanal 3, Gerätetyp 17 FE-C, Übertragungstyp 5, 4 Hz). Gesendet werden die **korrigierte** Leistung und die **virtuelle** Geschwindigkeit, Seiten 0x10/0x19 im Wechsel, alle 66 Nachrichten 0x50/0x51. Takt kommt von EVENT_TX, nicht von `setInterval`. Eigene Geräte-Nr. wird gewürfelt und gespeichert; koppelt der Empfangskanal sie versehentlich, wird sie abgelehnt (sonst liefe die Korrektur im Kreis). |
 | Robustheit | Fahrt alle 10 s in localStorage, Wiederherstellung nach Neuladen; Wake Lock; Service Worker (offline) |
 | Installation | Web-App-Manifest mit PNG-Icons (192/512, aus `icon.svg` gerendert) + `beforeinstallprompt`-Knopf → Startbildschirm, `display: standalone` |
 | Fallback | Web Bluetooth: FTMS 0x1826, Cycling Power 0x1818, HR 0x180D; Demo-Daten zum Testen |
@@ -55,6 +63,7 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
       Rangliste „genauestes Rad“ aussagekräftig
 - [ ] Zahl der Räder im Verein prüfen – die Bibliothek ist mit 1–12 vorbelegt, neue Nummern legt die App
       beim Eintragen selbst an
+- [ ] Senden an die Uhr am Rad prüfen (koppelt die Venu 3 den Kanal, stimmen Leistung/Distanz, hält der Stick 4 Kanäle)
 - [ ] Automatischer Upload zu Strava (OAuth; Client-Secret nicht ins Repo) / Garmin Connect (ggf. über Raspberry Pi)
 - [ ] Strukturierte Workouts mit Leistungszielen
 
