@@ -54,25 +54,40 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
 ## Projektstand / Erkenntnisse
 - Konsole: WattRate LCD (2016), ±10 % laut Handbuch, Leistung = f(Bremsposition, Drehzahl). Bremskalibrierung: Startbildschirm, Pfeil-runter + Licht ≥ 3 s.
 - Bluetooth der Konsole vermutlich nur für die ICG-App (proprietär); Standarddaten kommen per ANT+ (Zwift-Forum: IC5-Nutzer brauchen ANT+→BLE-Bridge). **Noch per nRF-Scan zu bestätigen.**
-- Vergleich Indoor vs. Rennrad mit Powermeter bei gleicher HF: Faktor 1,4–1,8, steigend mit Intensität. Vorläufig a = 1,5, b = 0.
+- Vergleich Indoor vs. Rennrad mit Powermeter bei gleicher HF: Faktor 1,4–1,8, steigend mit Intensität.
+  **Diese Messung stammt von einem Rad mit nicht kalibrierter Bremse** – nach der Bremskalibrierung
+  deutet alles auf a ≈ 1 hin (s. 09.10.2026). Der Standardwert 1,5 in `BIKE_DEF` ist damit fraglich.
 - Venu 3 hat ein nRF-Connect-Fake-Advertising (0x1818/0x1816, auch mit GATT-Server) nicht gefunden → Handy-als-Sensor-Brücke zur Uhr verworfen.
 - Handy: Samsung S23 (kein natives ANT+) + CooSpo ANT+ USB-Stick über USB-C-OTG.
 - Puls kommt vom Decathlon-Brustgurt (HRM Dual, ANT+ und Bluetooth). Die Konsole als Pulsquelle ist
   bewusst ausgeschlossen: sie zeigt die HF eines beliebigen gekoppelten Gurts in Reichweite an.
-- **09.10.2026, erster Test am Rad – das Senden an die Uhr funktioniert.** Fahrt 19:08, 50 min.
-  Leistung in der FIT der App und in der Aufzeichnung der Venu 3 (über Strava geprüft) sind
-  **punktweise identisch**: Median des Verhältnisses 1,000, in 33 von 100 Stichproben bitgleich,
-  Abweichungen nur dort, wo Stravas Glättung interpoliert. Die Uhr bekommt also die **korrigierte**
-  Leistung, nicht die rohe. Trittfrequenz und Puls stimmen ebenso (Ø 157,6 bpm App / 158,1 bpm Uhr).
-  Drei Einschränkungen dabei:
-  1. **Die Uhr übernimmt Geschwindigkeit und Distanz nicht** – in beiden Uhr-Aktivitäten ist die
-     Geschwindigkeit durchgehend 0 und die Distanz 0, obwohl Seite 0x10 beides sendet. Garmin verwirft
-     die Trainer-Geschwindigkeit bei Indoor-Aktivitäten. Die virtuelle Distanz (hier 25,1 km) gibt es
-     also nur in der FIT-Datei der App.
-  2. **Die Uhr zerlegte die Fahrt in zwei Aktivitäten** (1733 s + 1042 s = 2775 s gegenüber 3016 s in
-     der App); dazwischen fehlen rund 4 min. Ursache noch offen – versehentlicher Stopp oder
-     Kanalabbruch. Beim nächsten Mal auf die Uhr achten.
-  3. Der App fehlten 43 von 3016 Pulswerten (Gurt-Aussetzer), der Uhr nicht.
+- **09.10.2026, erster Test am Rad – der ANT+-Empfang und die Leistungsberechnung stimmen.**
+  Fahrt 19:08, 50 min. App und Venu 3 lasen **unabhängig voneinander dieselbe Konsole** (die Uhr war
+  direkt mit Bicycle Power + Trittfrequenz vom Rad und dem Gurt gekoppelt, als Indoor-Radfahrt).
+  Im gemeinsamen Zeitfenster von 1626 s:
+
+  | | Ø Leistung | max |
+  |---|---|---|
+  | Uhr (Garmin-Original-FIT) | 228,1 W | 390 W |
+  | App | 228,5 W | 393 W |
+
+  Verhältnis der Mittelwerte **1,0018**. Einzelne Sekunden weichen ab (nur 37 % bitgleich), weil die
+  Uhr mit *smart recording* abtastet und beide ΔAccPower/ΔEventCount zu leicht verschobenen Zeitpunkten
+  auswerten – im Mittel hebt sich das auf. Damit ist der ANT+-Parser samt Leistungsberechnung gegen ein
+  unabhängiges Gerät geprüft.
+- **Das Senden an die Uhr (FE-C) ist weiterhin ungetestet.** In der Geräteliste der Garmin-Datei steht
+  **kein Gerätetyp 17**, nur Typ 11 (Bicycle Power), Trittfrequenz und Typ 120 (Gurt). Die Uhr hing
+  also direkt am Rad, nicht am Sender der App. Ein früherer Eintrag hier behauptete das Gegenteil –
+  er beruhte auf dem Trugschluss, dass übereinstimmende Werte den Sender belegen; bei Korrektur
+  a = 1 sind App- und Konsolenwert aber ohnehin gleich.
+- **Nach der Bremskalibrierung der Konsole scheint a ≈ 1 zu stimmen – der Standard 1,5 stammt vom
+  unkalibrierten Rad.** Mit a = 1 ergab die Fahrt NP 290 W bei einer am Rennrad gesetzten FTP von
+  320 W, also IF 0,91 über 29 min, bei Ø 158 bpm. Zum Vergleich die Straßenfahrt vom 07.10. mit
+  Powermeter: Ø 206 W bei Ø 148 bpm. Das passt zusammen, **ist aber nur ein HF-Plausibilitätsargument
+  und kein Beleg** – dafür braucht es weiterhin die gleichzeitige Messung gegen einen Powermeter.
+- Nebenbefunde: Die Uhr übernimmt Geschwindigkeit und Distanz nicht (Indoor-Aktivitäten verwerfen sie),
+  die virtuelle Distanz gibt es nur in der FIT der App. Der App fehlten 43 von 3016 Pulswerten
+  (Gurt-Aussetzer), der Uhr nicht.
 - **Die Konsole bietet BLE und ANT im Menü an.** Damit ist der Dongle für den *Empfang* womöglich
   entbehrlich (Web-Bluetooth-Fallback ist eingebaut) – zum *Senden an die Uhr* aber nicht: Web Bluetooth
   kennt im Browser keine Peripheral-Rolle, das Handy kann per BLE kein Trainer sein. Noch zu prüfen,
@@ -85,8 +100,10 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
   unterscheiden, belegt ist das aber nicht – laut Handbuch streut die Konsole ±10 %.
 
 ## Offen
-- [x] ~~Erster Test am Rad~~ – 09.10.2026 gelaufen, Senden an die Uhr bestätigt (s. Projektstand)
-- [ ] Klären, warum die Uhr die Fahrt in zwei Aktivitäten zerlegt hat (rund 4 min fehlen)
+- [x] ~~Erster Test am Rad~~ – 09.10.2026 gelaufen, Empfang und Leistungsberechnung bestätigt
+- [ ] **Senden an die Uhr steht noch aus** – beim nächsten Mal „An Uhr senden" einschalten und auf der
+      Uhr den *Smart-Trainer* koppeln (nicht den Leistungsmesser!), dann in der Garmin-FIT prüfen, ob
+      Gerätetyp 17 in der Geräteliste auftaucht
 - [ ] Prüfen, ob die Konsole über BLE Standardprofile sendet (0x1826 / 0x1818) – dann ginge der
       Empfang ohne Dongle. Zum Senden an die Uhr bleibt der Dongle in jedem Fall nötig.
 - [ ] a/b sauber bestimmen: Stufentest (je 8 min ~100/130/160 W Display, 85 U/min, Brustgurt) vs. Rennrad
