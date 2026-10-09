@@ -15,6 +15,29 @@ const pc = C.makePowerCalc(); pc(250, 65500, 0, 0);
 ok(Math.abs(pc(253, (65500+3*180) & 0xFFFF, 170, 250) - 180) < 1e-9, "kumulierte Leistung mit Überlauf = 180 W");
 ok(pc(253, (65500+3*180) & 0xFFFF, 170, 4000) === 0, "Stillstand -> 0 W");
 const fe = C.parseFecPage([0x19,1,88,0x34,0x12,0x2C,0x31,0]); ok(fe.inst === 0x12C && fe.cad === 88, "FE-C Seite 0x19");
+
+// ---- Puls: nur echte Schläge des Brustgurts ----
+const hp = C.parseHrPage([0x84,0xFF,0xFF,0xFF,0x10,0x27,42,145]);
+ok(hp.page === 0x04 && hp.beats === 42 && hp.hr === 145, "HRM-Seite: Seitennr. ohne Toggle-Bit, Schlagzähler, HF");
+const hc = C.makeHrCalc(10000);
+ok(hc({hr:145, beats:42}, 0) === 145, "HF mit Schlag");
+ok(hc({hr:145, beats:42}, 9000) === 145, "HF bleibt gültig bis zur Grenze");
+ok(hc({hr:145, beats:42}, 11000) === null, "ohne neuen Schlag -> HF verworfen (Gurt abgelegt)");
+ok(hc({hr:145, beats:43}, 12000) === 145, "neuer Schlag -> wieder gültig");
+ok(hc({hr:0, beats:44}, 13000) === null, "HF 0 ist kein Puls");
+
+// ---- Rad-Bibliothek ----
+ok(C.bikeNrFromName("IC5-07") === 7 && C.bikeNrFromName("ICG Bike 7") === 7, "Radnummer aus Namen");
+ok(C.bikeNrFromName("IC5") === null && C.bikeNrFromName("IC5 2016") === null, "Modellname ergibt keine Radnummer");
+const BK = { 3:{a:1.5,b:0,cal:null,n:0,sd:null}, 5:{a:1.44,b:5,cal:"2026-10-20",n:9,sd:6}, 8:{a:1.52,b:0,cal:"2026-10-21",n:4,sd:6} };
+ok(C.bikeUncert(BK[3]) === Infinity && Math.abs(C.bikeUncert(BK[5]) - 2) < 1e-9, "Unsicherheit sd/√n");
+ok(C.bikeRanking(BK).join() === "5,8,3", "genauestes Rad zuerst, nicht kalibrierte zuletzt");
+const r1 = C.resolveBike(4711, "", {4711:5}, BK, {a:1.5,b:0});
+ok(r1.nr === 5 && r1.a === 1.44 && r1.b === 5 && r1.calibrated, "Geräte-Nr. liefert Rad und dessen Korrektur");
+const r2 = C.resolveBike(9999, "IC5-08", {4711:5}, BK, {a:1.5,b:0});
+ok(r2.nr === 8 && r2.how === "Name", "unbekannte Geräte-Nr. -> Name als Rückfall");
+const r3 = C.resolveBike(9999, "IC5", {}, BK, {a:1.7,b:2});
+ok(r3.nr === null && r3.a === 1.7 && r3.b === 2 && !r3.calibrated, "nichts erkannt -> Standard aus den Einstellungen");
 const v = C.virtualSpeed(200, 109); ok(v*3.6 > 32 && v*3.6 < 35, `200 W -> ${(v*3.6).toFixed(1)} km/h`);
 ok(C.zoneOf(140,250) === 1 && C.zoneOf(260,250) === 3 && C.zoneOf(400,250) === 6, "Zonen");
 ok(Math.round(C.np(Array(600).fill(200))) === 200, "NP konstant");
