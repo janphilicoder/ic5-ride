@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0f13">
+<link rel="manifest" href="manifest.webmanifest">
+<title>IC5 Ride</title>
+<style>
+:root{
+  --bg:#0d0f13; --card:#171a21; --line:#2a2f3a; --txt:#eef0f4; --dim:#8b93a3;
+  --acc:#ff6a2b; --ok:#35c98a; --bad:#ff4d63;
+  --z1:#8a8f99; --z2:#2f8cff; --z3:#22b36a; --z4:#f2c230; --z5:#ff8a1f; --z6:#ff3b4f; --z7:#a259ff;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none}
+button{font:inherit;color:inherit;border:0;cursor:pointer}
+.hidden{display:none!important}
+.num{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;font-weight:800;letter-spacing:-.02em}
+
+/* ---------- Setup ---------- */
+#setup{padding:max(14px,env(safe-area-inset-top)) 16px 24px;max-width:560px;margin:0 auto}
+h1{font-size:22px;margin:4px 0 14px}
+h1 b{color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:0 0 10px}
+.src{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.src:first-of-type{border-top:0}
+.src .lbl{flex:1}
+.src .lbl small{display:block;color:var(--dim);font-size:13px;margin-top:2px}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--bad);flex:none}
+.dot.on{background:var(--ok)} .dot.wait{background:#f2c230}
+.btn{background:#242936;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-weight:650}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:#141414}
+.btn.big{width:100%;padding:20px;font-size:22px;border-radius:16px}
+.btn.small{padding:8px 10px;font-size:14px}
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+.live{display:flex;justify-content:space-around;text-align:center;padding:6px 0 2px}
+.live div span{display:block;font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+.live .num{font-size:30px}
+.mode{display:flex;gap:8px;margin-bottom:12px}
+.mode button{flex:1;padding:14px 8px;border-radius:12px;background:#242936;border:2px solid transparent;font-weight:700}
+.mode button.sel{border-color:var(--acc)}
+label.f{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:15px}
+label.f:first-of-type{border-top:0}
+label.f small{display:block;color:var(--dim);font-size:12px}
+label.f input{width:96px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--txt);font-size:17px;text-align:right}
+.note{font-size:13px;color:var(--dim);line-height:1.45}
+.warn{background:#3a2a10;color:#f7c56b;border-radius:12px;padding:10px 12px;font-size:14px;margin-bottom:12px}
+details summary{cursor:pointer;font-weight:650;color:var(--dim);padding:4px 0}
+pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--dim);max-height:180px;overflow:auto}
+
+/* ---------- Ride ---------- */
+#ride{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--z1);color:#0b0b0b;
+  padding:max(8px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));transition:background .6s}
+#ride.dark{color:#fff}
+.zoneBar{display:flex;justify-content:space-between;align-items:baseline;font-weight:800;font-size:clamp(20px,6vw,40px);padding:2px 6px}
+.zoneBar .tag{background:rgba(0,0,0,.18);padding:2px 12px;border-radius:999px}
+.watt{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:0}
+.watt .num{font-size:min(42vw,34vh);line-height:.9}
+.watt .unit{font-size:clamp(16px,4.5vw,30px);font-weight:800;opacity:.75;margin-top:-.2em}
+.target{font-size:clamp(20px,6vw,44px);font-weight:800;text-align:center;padding:6px;border-radius:14px;background:rgba(0,0,0,.18);margin:0 6px 6px}
+.target .arrow{font-size:1.1em}
+.target small{display:block;font-size:.5em;opacity:.8}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.cell{background:rgba(0,0,0,.16);border-radius:14px;padding:6px 4px;text-align:center;min-width:0}
+.cell span{display:block;font-size:clamp(11px,3vw,16px);font-weight:800;text-transform:uppercase;letter-spacing:.06em;opacity:.7}
+.cell .num{font-size:clamp(28px,10vw,64px);line-height:1.05}
+.rideBtns{display:flex;gap:8px;margin-top:8px}
+.rideBtns button{flex:1;padding:14px;border-radius:14px;background:rgba(0,0,0,.28);color:#fff;font-weight:800;font-size:18px}
+.conn{font-size:13px;font-weight:700;background:rgba(0,0,0,.3);color:#fff;padding:2px 10px;border-radius:999px;margin-top:8px}
+
+/* ---------- Summary ---------- */
+#summary{padding:max(14px,env(safe-area-inset-top)) 16px 24px;max-width:560px;margin:0 auto}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.stat span{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+.stat .num{font-size:28px;display:block}
+.zrow{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:14px}
+.zrow .zl{width:30px;font-weight:800}
+.zrow .bar{flex:1;height:18px;background:#242936;border-radius:6px;overflow:hidden}
+.zrow .bar i{display:block;height:100%}
+.zrow .zt{width:64px;text-align:right;color:var(--dim)}
+.result{font-size:20px;text-align:center;padding:16px;border-radius:16px;background:var(--card);border:2px solid var(--acc);margin-bottom:12px}
+.result .num{font-size:44px;white-space:nowrap;color:var(--acc);display:block}
+</style>
+</head>
+<body>
+
+<!-- ===================== SETUP ===================== -->
+<section id="setup">
+  <h1>IC5 <b>Ride</b></h1>
+  <div id="warn" class="warn hidden"></div>
+  <div id="recover" class="warn hidden">
+    Es gibt eine nicht beendete Aufnahme (<span id="recInfo"></span>).
+    <div class="row" style="margin-top:8px">
+      <button class="btn small" id="btnRecResume">Fortsetzen</button>
+      <button class="btn small" id="btnRecSave">Beenden &amp; speichern</button>
+      <button class="btn small" id="btnRecDrop">Verwerfen</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Verbindung</h2>
+    <div class="src">
+      <i class="dot" id="dUsb"></i>
+      <div class="lbl">ANT+ Stick <small id="sUsb">nicht verbunden</small></div>
+      <button class="btn small" id="btnUsb">Verbinden</button>
+    </div>
+    <div class="src">
+      <i class="dot" id="dPow"></i>
+      <div class="lbl">Rad (Leistung) <small id="sPow">–</small></div>
+      <button class="btn small" id="btnRepairPow" title="Gespeichertes Rad vergessen und neu suchen">Neu koppeln</button>
+    </div>
+    <div class="src">
+      <i class="dot" id="dHr"></i>
+      <div class="lbl">Puls <small id="sHr">–</small></div>
+      <button class="btn small" id="btnRepairHr">Neu koppeln</button>
+    </div>
+    <div class="live">
+      <div><span>Watt</span><b class="num" id="lP">–</b></div>
+      <div><span>U/min</span><b class="num" id="lC">–</b></div>
+      <div><span>Puls</span><b class="num" id="lH">–</b></div>
+    </div>
+    <p class="note">Tipp: Erst antreten (Konsole aufwecken), dann verbinden. Gekoppelt wird das <b>nächstgelegene</b> Rad – Handy mit Stick also am eigenen Lenker haben. Prüfe, ob die U/min zu deinem Treten passen.</p>
+  </div>
+
+  <div class="mode" id="modeSel">
+    <button data-mode="free" class="sel">Freie Fahrt</button>
+    <button data-mode="ramp">Rampentest (FTP)</button>
+  </div>
+
+  <button class="btn primary big" id="btnStart">Start</button>
+
+  <div class="card" style="margin-top:12px">
+    <h2>Einstellungen</h2>
+    <label class="f"><span>FTP<small>W, für Zonen</small></span><input id="cFtp" type="number" inputmode="numeric"></label>
+    <label class="f"><span>Faktor a<small>P = a · P<sub>IC5</sub> + b</small></span><input id="cA" type="number" step="0.01" inputmode="decimal"></label>
+    <label class="f"><span>Offset b<small>W</small></span><input id="cB" type="number" step="1" inputmode="numeric"></label>
+    <label class="f"><span>Fahrer + Rad<small>kg, für virtuelle Distanz</small></span><input id="cMass" type="number" inputmode="numeric"></label>
+    <label class="f"><span>Rampe Start<small>W (korrigiert)</small></span><input id="cRampStart" type="number" inputmode="numeric"></label>
+    <label class="f"><span>Rampe Schritt<small>W pro Minute</small></span><input id="cRampStep" type="number" inputmode="numeric"></label>
+    <details style="margin-top:8px">
+      <summary>Weitere Quellen &amp; Diagnose</summary>
+      <div class="row" style="margin:8px 0">
+        <button class="btn small" id="btnUsbAll">USB: alle Geräte</button>
+        <button class="btn small" id="btnBle">Bluetooth-Rad</button>
+        <button class="btn small" id="btnBleHr">Bluetooth-Puls</button>
+      </div>
+      <div class="row" style="margin:8px 0">
+        <button class="btn small" id="btnDemo">Demo-Daten</button>
+      </div>
+      <pre id="log"></pre>
+    </details>
+  </div>
+</section>
+
+<!-- ===================== RIDE ===================== -->
+<section id="ride" class="hidden">
+    <div class="zoneBar"><span class="tag" id="rZone">Z1</span><span class="num" id="rTime">0:00</span></div>
+  <div class="watt"><b class="num" id="rP">0</b><span class="unit">WATT</span><span class="conn" id="connInfo"></span></div>
+  <div class="target hidden" id="rTarget"></div>
+  <div class="grid">
+    <div class="cell"><span>U/min</span><b class="num" id="rC">0</b></div>
+    <div class="cell"><span>Puls</span><b class="num" id="rH">–</b></div>
+    <div class="cell"><span>km</span><b class="num" id="rD">0.0</b></div>
+    <div class="cell"><span>Ø W</span><b class="num" id="rAvg">0</b></div>
+    <div class="cell"><span>NP</span><b class="num" id="rNp">0</b></div>
+    <div class="cell"><span>% FTP</span><b class="num" id="rPct">0</b></div>
+  </div>
+  <div class="rideBtns">
+    <button id="btnPause">Pause</button>
+    <button id="btnStop">Beenden</button>
+  </div>
+</section>
+
+<!-- ===================== SUMMARY ===================== -->
+<section id="summary" class="hidden">
+  <h1>Zusammen&shy;fassung</h1>
+  <div id="rampResult" class="result hidden"></div>
+  <div class="stats" id="sumStats"></div>
+  <div class="card" style="margin-top:12px">
+    <h2>Zeit in Zonen</h2>
+    <div id="sumZones"></div>
+  </div>
+  <button class="btn primary big" id="btnFit">FIT-Datei speichern / teilen</button>
+  <p class="note">Hochladen: <b>connect.garmin.com</b> → Symbol „+“ / Daten importieren → FIT-Datei. Strava: <b>strava.com/upload/select</b>. Die Datei ist als „Indoor Cycling“ markiert.</p>
+  <button class="btn big" id="btnNew" style="margin-top:8px">Neue Fahrt</button>
+</section>
+
+<!-- ===================== CORE (reine Funktionen, getestet) ===================== -->
+<script id="core">
+"use strict";
+const Core = (() => {
+  /* ---------- ANT ---------- */
+  const ANT_KEY = [0xB9,0xA5,0x21,0xFB,0xBD,0x72,0xC3,0x45];   // ANT+ Netzwerk-Schlüssel
+  function antMsg(id, data){
+    const m = [0xA4, data.length, id, ...data];
+    let c = 0; for(const b of m) c ^= b;
+    m.push(c); return new Uint8Array(m);
+  }
+  // Byte-Strom -> vollständige Nachrichten. Gibt {msgs, rest} zurück.
+  function antParse(buf){
+    const msgs = []; let i = 0;
+    while(i < buf.length){
+      if(buf[i] !== 0xA4){ i++; continue; }
+      if(i + 2 >= buf.length) break;
+      const len = buf[i+1], total = len + 4;
+      if(len > 40){ i++; continue; }                 // Unsinn -> neu synchronisieren
+      if(i + total > buf.length) break;
+      let c = 0; for(let k=i;k<i+total-1;k++) c ^= buf[k];
+      if(c === buf[i+total-1]) msgs.push({id: buf[i+2], data: buf.slice(i+3, i+3+len)});
+      i += (c === buf[i+total-1]) ? total : 1;
+    }
+    return {msgs, rest: buf.slice(i)};
+  }
+  // Leistung aus kumulierter Leistung (ANT+ Bicycle Power Page 0x10 bzw. FE-C 0x19)
+  function makePowerCalc(){
+    let prev = null, last = {power:0, t:0};
+    return function(evt, acc, inst, now){
+      if(prev && evt !== prev.evt){
+        const de = (evt - prev.evt) & 0xFF, da = (acc - prev.acc) & 0xFFFF;
+        const p = de ? da / de : inst;
+        last = {power: (p >= 0 && p < 3000) ? p : inst, t: now};
+      } else if(!prev){
+        last = {power: inst, t: now};
+      }
+      prev = {evt, acc};
+      // kein neues Ereignis seit 3 s -> Fahrer steht
+      return (now - last.t > 3000) ? 0 : last.power;
+    };
+  }
+  function parsePowerPage(d){                       // Gerätetyp 11
+    if(d[0] === 0x10) return {page:0x10, evt:d[1], cad: d[3] === 0xFF ? null : d[3], acc: d[4] | d[5]<<8, inst: d[6] | d[7]<<8};
+    return {page:d[0]};
+  }
+  function parseFecPage(d){                         // Gerätetyp 17 (FE-C)
+    if(d[0] === 0x19) return {page:0x19, evt:d[1], cad: d[2] === 0xFF ? null : d[2], acc: d[3] | d[4]<<8, inst: d[5] | (d[6] & 0x0F)<<8};
+    return {page:d[0]};
+  }
+  function parseHrPage(d){ return {hr: d[7]}; }     // Gerätetyp 120, Byte 7 in allen Seiten
+
+  /* ---------- Physik: virtuelle Geschwindigkeit in der Ebene ---------- */
+  // P = v·(½·ρ·cwA·v² + cr·m·g)  -> v per Bisektion (f ist streng monoton)
+  function virtualSpeed(P, mass, cda=0.32, crr=0.004, rho=1.2, g=9.81){
+    if(!(P > 0)) return 0;
+    let lo = 0, hi = 30;
+    for(let k=0;k<50;k++){
+      const v = (lo+hi)/2, f = v*(0.5*rho*cda*v*v + crr*mass*g) - P;
+      if(f > 0) hi = v; else lo = v;
+    }
+    return (lo+hi)/2;
+  }
+
+  /* ---------- Auswertung ---------- */
+  const ZONES = [ [0,.55,'Z1','Erholung'], [.55,.75,'Z2','Grundlage'], [.75,.90,'Z3','Tempo'],
+                  [.90,1.05,'Z4','Schwelle'], [1.05,1.20,'Z5','VO₂max'], [1.20,1.50,'Z6','Anaerob'], [1.50,99,'Z7','Sprint'] ];
+  function zoneOf(p, ftp){ const r = p/ftp; for(let i=0;i<ZONES.length;i++) if(r < ZONES[i][1]) return i; return 6; }
+  function np(p){
+    if(!p.length) return 0;
+    let s=0, acc=0; const q=[];
+    for(const x of p){ q.push(x); s+=x; if(q.length>30) s-=q.shift(); acc += Math.pow(s/q.length,4); }
+    return Math.pow(acc/p.length, .25);
+  }
+  function bestAvg(p, w){
+    if(p.length < w) return 0;
+    let s=0; for(let i=0;i<w;i++) s+=p[i]; let b=s;
+    for(let i=w;i<p.length;i++){ s += p[i]-p[i-w]; if(s>b) b=s; }
+    return b/w;
+  }
+  function summarize(S, ftp){
+    const p = S.map(s=>s.p), n = p.length;
+    const hr = S.map(s=>s.hr).filter(x=>x>0), cad = S.map(s=>s.cad).filter(x=>x>0);
+    const avg = n ? p.reduce((a,b)=>a+b,0)/n : 0, NP = np(p), IF = ftp ? NP/ftp : 0;
+    const zt = new Array(7).fill(0); for(const x of p) zt[zoneOf(x,ftp)]++;
+    return { n, avg, max: n?Math.max(...p):0, np: NP, if: IF, tss: n*NP*IF/(ftp*36),
+      work: p.reduce((a,b)=>a+b,0), dist: n ? S[n-1].dist : 0,
+      hrAvg: hr.length ? hr.reduce((a,b)=>a+b,0)/hr.length : 0, hrMax: hr.length?Math.max(...hr):0,
+      cadAvg: cad.length ? cad.reduce((a,b)=>a+b,0)/cad.length : 0, cadMax: cad.length?Math.max(...cad):0,
+      spdMax: n?Math.max(...S.map(s=>s.spd)):0, zt, best1: bestAvg(p,60), best5: bestAvg(p,300), best20: bestAvg(p,1200) };
+  }
+
+  /* ---------- FIT-Encoder ---------- */
+  const FIT_EPOCH = 631065600;
+  const CRC_T = [0x0000,0xCC01,0xD801,0x1400,0xF001,0x3C00,0x2800,0xE401,0xA001,0x6C00,0x7800,0xB401,0x5000,0x9C01,0x8801,0x4400];
+  function crc16(bytes, crc=0){
+    for(const b of bytes){
+      let t = CRC_T[crc & 0xF]; crc = (crc>>4) & 0x0FFF; crc = crc ^ t ^ CRC_T[b & 0xF];
+      t = CRC_T[crc & 0xF]; crc = (crc>>4) & 0x0FFF; crc = crc ^ t ^ CRC_T[(b>>4) & 0xF];
+    }
+    return crc;
+  }
+  const T = { enum:[0x00,1,0xFF], u8:[0x02,1,0xFF], u16:[0x84,2,0xFFFF], u32:[0x86,4,0xFFFFFFFF], u32z:[0x8C,4,0] };
+  function fitEncode(S, sum, ftp, startMs){
+    const out = []; const local = {}; let nextLocal = 0;
+    const put = (v,size) => { for(let k=0;k<size;k++) out.push((v >>> (8*k)) & 0xFF); };
+    function write(gmsg, fields){            // fields: [[num, type, value], ...]
+      const key = gmsg + ':' + fields.map(f=>f[0]+'/'+f[1]).join(',');
+      if(!(key in local)){
+        const lt = nextLocal++ % 16; local[key] = lt;
+        out.push(0x40 | lt, 0, 0, gmsg & 0xFF, gmsg >> 8, fields.length);
+        for(const [num,type] of fields) out.push(num, T[type][1], T[type][0]);
+      }
+      out.push(local[key]);
+      for(const [,type,val] of fields){
+        const [, size, inv] = T[type];
+        const v = (val === null || val === undefined || Number.isNaN(val)) ? inv : Math.max(0, Math.min(Math.round(val), inv === 0 ? 0xFFFFFFFF : inv-1));
+        put(v, size);
+      }
+    }
+    const ts = ms => Math.round(ms/1000) - FIT_EPOCH;
+    const t0 = ts(startMs), tEnd = ts(S[S.length-1].t);
+    const elapsed = (S[S.length-1].t - startMs)/1000 + 1, timer = S.length;
+    write(0,  [[0,'enum',4],[1,'u16',255],[2,'u16',1],[3,'u32z',Math.floor(startMs/1000)],[4,'u32',t0]]);
+    write(21, [[253,'u32',t0],[0,'enum',0],[1,'enum',0]]);
+    for(const s of S){
+      write(20, [[253,'u32',ts(s.t)],[3,'u8',s.hr||null],[4,'u8',s.cad],[5,'u32',s.dist*100],[6,'u16',s.spd*1000],[7,'u16',s.p]]);
+    }
+    write(21, [[253,'u32',tEnd],[0,'enum',0],[1,'enum',4]]);
+    const kcal = sum.work/1000;                                   // ~24 % Wirkungsgrad -> kcal ≈ kJ
+    const common = [[2,'u32',t0],[7,'u32',elapsed*1000],[8,'u32',timer*1000]];
+    write(19, [[253,'u32',tEnd],[254,'u16',0],...common,[9,'u32',sum.dist*100],[11,'u16',kcal],[13,'u16',sum.dist/timer*1000],
+      [14,'u16',sum.spdMax*1000],[15,'u8',sum.hrAvg||null],[16,'u8',sum.hrMax||null],[17,'u8',sum.cadAvg],[18,'u8',sum.cadMax],
+      [19,'u16',sum.avg],[20,'u16',sum.max],[33,'u16',sum.np],[41,'u32',sum.work],[0,'enum',9],[1,'enum',1],[25,'enum',2],[39,'enum',6]]);
+    write(18, [[253,'u32',tEnd],[254,'u16',0],...common,[9,'u32',sum.dist*100],[5,'enum',2],[6,'enum',6],[11,'u16',kcal],
+      [14,'u16',sum.dist/timer*1000],[15,'u16',sum.spdMax*1000],[16,'u8',sum.hrAvg||null],[17,'u8',sum.hrMax||null],
+      [18,'u8',sum.cadAvg],[19,'u8',sum.cadMax],[20,'u16',sum.avg],[21,'u16',sum.max],[34,'u16',sum.np],[48,'u32',sum.work],
+      [45,'u16',ftp],[36,'u16',sum.if*1000],[35,'u16',sum.tss*10],[25,'u16',0],[26,'u16',1],[0,'enum',8],[1,'enum',1]]);
+    const tzOff = -new Date(startMs).getTimezoneOffset()*60;
+    write(34, [[253,'u32',tEnd],[0,'u32',timer*1000],[1,'u16',1],[2,'enum',0],[3,'enum',26],[4,'enum',1],[5,'u32',tEnd+tzOff]]);
+
+    const hdr = [14, 0x10, 2132 & 0xFF, 2132 >> 8];
+    const n = out.length; hdr.push(n & 0xFF, (n>>8)&0xFF, (n>>16)&0xFF, (n>>24)&0xFF, 0x2E,0x46,0x49,0x54);
+    const hc = crc16(hdr); hdr.push(hc & 0xFF, hc >> 8);
+    const all = hdr.concat(out); const c = crc16(all); all.push(c & 0xFF, c >> 8);
+    return new Uint8Array(all);
+  }
+
+  return { ANT_KEY, antMsg, antParse, makePowerCalc, parsePowerPage, parseFecPage, parseHrPage,
+           virtualSpeed, ZONES, zoneOf, np, bestAvg, summarize, fitEncode, crc16, FIT_EPOCH };
+})();
+if(typeof module !== "undefined") module.exports = Core;
+</script>
+
+<!-- ===================== APP ===================== -->
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const C = Core;
+
+/* ---------- Einstellungen ---------- */
+const DEF = { ftp: 250, a: 1.5, b: 0, mass: 85, rampStart: 100, rampStep: 20 };
+function lsGet(k, d){ try{ const v = localStorage.getItem("ic5_"+k); return v === null ? d : JSON.parse(v); }catch(e){ return d; } }
+function lsSet(k, v){ try{ localStorage.setItem("ic5_"+k, JSON.stringify(v)); }catch(e){} }
+const cfg = Object.assign({}, DEF, lsGet("cfg", {}));
+const inputs = { ftp:"cFtp", a:"cA", b:"cB", mass:"cMass", rampStart:"cRampStart", rampStep:"cRampStep" };
+for(const [k,id] of Object.entries(inputs)){
+  $(id).value = cfg[k];
+  $(id).addEventListener("change", () => { const v = parseFloat($(id).value); if(!isNaN(v)){ cfg[k] = v; lsSet("cfg", cfg); } });
+}
+
+/* ---------- Log ---------- */
+function log(t){ const l=$("log"); l.textContent = new Date().toLocaleTimeString()+"  "+t+"\n"+l.textContent.slice(0,6000); }
+function warn(t){ $("warn").textContent = t; $("warn").classList.toggle("hidden", !t); }
+if(!("usb" in navigator) && !("bluetooth" in navigator)) warn("Dieser Browser kann weder USB noch Bluetooth. Bitte Chrome auf Android verwenden und die Seite über https öffnen.");
+
+/* ---------- Live-Zustand (von allen Quellen gefüttert) ---------- */
+const live = { pRaw:null, pT:0, cad:null, cT:0, hr:null, hT:0, src:"" };
+function feedPower(p, cad, src){ const n=Date.now(); live.pRaw=p; live.pT=n; if(cad!==null && cad!==undefined){ live.cad=cad; live.cT=n; } live.src=src; }
+function feedHr(h){ if(h>0){ live.hr=h; live.hT=Date.now(); } }
+function fresh(v, t, ms=4000){ return (v !== null && Date.now()-t < ms) ? v : null; }
+const corr = raw => raw > 0 ? Math.max(0, cfg.a*raw + cfg.b) : 0;
+
+/* =====================================================================
+   ANT+ über WebUSB
+   ===================================================================== */
+const ant = { dev:null, epIn:null, epOut:null, buf:new Uint8Array(0), ch:{}, reading:false };
+const CH = {
+  0: { name:"pow", type:11,  period:8182, key:"antPow" },
+  1: { name:"fec", type:17,  period:8192, key:"antFec" },
+  2: { name:"hr",  type:120, period:8070, key:"antHr"  },
+};
+const powCalc = { 0: C.makePowerCalc(), 1: C.makePowerCalc() };
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+async function antSend(id, data){ await ant.dev.transferOut(ant.epOut.endpointNumber, C.antMsg(id, data)); await sleep(40); }
+
+async function usbConnect(all){
+  try{
+    const dev = await navigator.usb.requestDevice({ filters: all ? [] : [{vendorId:0x0FCF}] });
+    await usbOpen(dev);
+  }catch(e){ if(e.name !== "NotFoundError") { warn("USB: "+e.message); log("USB-Fehler "+e.name+": "+e.message); } }
+}
+
+async function usbOpen(dev){
+  ant.dev = dev;
+  $("sUsb").textContent = "öffne …"; $("dUsb").className = "dot wait";
+  await dev.open();
+  if(dev.configuration === null) await dev.selectConfiguration(1);
+  const iface = dev.configuration.interfaces[0];
+  await dev.claimInterface(iface.interfaceNumber);
+  const alt = iface.alternate;
+  ant.epIn  = alt.endpoints.find(e => e.direction === "in"  && e.type === "bulk");
+  ant.epOut = alt.endpoints.find(e => e.direction === "out" && e.type === "bulk");
+  log(`USB ${dev.manufacturerName||""} ${dev.productName||""} ${dev.vendorId.toString(16)}:${dev.productId.toString(16)} in=${ant.epIn&&ant.epIn.endpointNumber} out=${ant.epOut&&ant.epOut.endpointNumber}`);
+  if(!ant.epIn || !ant.epOut) throw new Error("Keine Bulk-Endpunkte gefunden");
+  if(dev.productId === 0x1008){                 // ältere Sticks mit CP210x-USB-Seriell-Chip
+    const ctl = (request, value, data) => dev.controlTransferOut({requestType:"vendor", recipient:"interface", request, value, index: iface.interfaceNumber}, data);
+    await ctl(0x00, 0x0001);                                    // IFC_ENABLE
+    await ctl(0x1E, 0, new Uint8Array([0x00,0xE1,0x00,0x00]));  // 57600 Baud
+    await ctl(0x03, 0x0800);                                    // 8N1
+  }
+  $("sUsb").textContent = (dev.productName || "ANT-Stick") + " verbunden"; $("dUsb").className = "dot on";
+  readLoop();
+  await antInit();
+}
+
+async function readLoop(){
+  if(ant.reading) return; ant.reading = true;
+  while(ant.dev && ant.dev.opened){
+    try{
+      const r = await ant.dev.transferIn(ant.epIn.endpointNumber, 64);
+      if(r.data && r.data.byteLength){
+        const nb = new Uint8Array(ant.buf.length + r.data.byteLength);
+        nb.set(ant.buf); nb.set(new Uint8Array(r.data.buffer, r.data.byteOffset, r.data.byteLength), ant.buf.length);
+        const {msgs, rest} = C.antParse(nb); ant.buf = rest;
+        for(const m of msgs) antHandle(m);
+      }
+    }catch(e){ log("USB-Lesefehler: "+e.message); break; }
+  }
+  ant.reading = false;
+  $("sUsb").textContent = "getrennt"; $("dUsb").className = "dot";
+}
+
+async function antInit(){
+  await antSend(0x4A, [0x00]); await sleep(600);              // Reset
+  await antSend(0x46, [0x00, ...C.ANT_KEY]);                    // Netzwerk-Schlüssel
+  for(const [n, c] of Object.entries(CH)) await antOpenChannel(+n);
+}
+
+async function antOpenChannel(n){
+  const c = CH[n], saved = lsGet(c.key, 0);
+  await antSend(0x42, [n, 0x00, 0x00]);                         // Slave, Netzwerk 0
+  await antSend(0x51, [n, saved & 0xFF, saved >> 8, c.type, 0]);// Geräte-Nr. (0 = beliebig)
+  await antSend(0x43, [n, c.period & 0xFF, c.period >> 8]);
+  await antSend(0x45, [n, 57]);                                 // 2457 MHz
+  await antSend(0x44, [n, 0xFF]);                               // Suche ohne Zeitlimit
+  if(!saved) await antSend(0x71, [n, 3]);                       // Näherungssuche: nur nahe Geräte
+  await antSend(0x4B, [n]);                                     // öffnen
+  c.devNo = saved || null; c.lastRx = 0;
+  setSrcText(n, saved ? `suche Gerät #${saved} …` : "suche nahes Gerät …", "wait");
+}
+
+function setSrcText(n, t, state){
+  const c = CH[n];
+  if(c.name === "hr"){ $("sHr").textContent = t; $("dHr").className = "dot " + state; }
+  else if(c.name === "pow" || (c.name === "fec" && !CH[0].lastRx)){ $("sPow").textContent = t; $("dPow").className = "dot " + state; }
+}
+
+function antHandle(m){
+  const d = m.data;
+  if(m.id === 0x4E || m.id === 0x4F){                           // Broadcast / Ack-Daten
+    const n = d[0], c = CH[n], p = d.slice(1, 9), now = Date.now();
+    if(!c) return;
+    c.lastRx = now;
+    if(!c.devNo && !c.asked){ c.asked = true; antSend(0x4D, [n, 0x51]); }   // Geräte-Nr. abfragen
+    if(c.name === "pow"){
+      const r = C.parsePowerPage(p);
+      if(r.page === 0x10) feedPower(powCalc[0](r.evt, r.acc, r.inst, now), r.cad, "ANT+ Leistung");
+    }else if(c.name === "fec"){
+      const r = C.parseFecPage(p);
+      if(r.page === 0x19 && !(CH[0].lastRx && now - CH[0].lastRx < 3000))
+        feedPower(powCalc[1](r.evt, r.acc, r.inst, now), r.cad, "ANT+ FE-C");
+    }else if(c.name === "hr"){
+      feedHr(C.parseHrPage(p).hr);
+    }
+  }else if(m.id === 0x51){                                      // Antwort Channel-ID
+    const n = d[0], c = CH[n], dn = d[1] | d[2]<<8;
+    if(c && dn){ c.devNo = dn; lsSet(c.key, dn); setSrcText(n, `Gerät #${dn} gekoppelt`, "on"); log(`${c.name}: Gerät #${dn} (Typ ${d[3]}) gespeichert`); }
+  }else if(m.id === 0x40){                                      // Kanal-Ereignis / Antwort
+    const n = d[0], code = d[2];
+    if(d[1] === 0x01 && code === 0x07 && CH[n]){ log(`Kanal ${n} geschlossen – öffne neu`); antOpenChannel(n); }
+    else if(d[1] !== 0x01 && code !== 0) log(`ANT Antwort auf 0x${d[1].toString(16)} Kanal ${n}: Code ${code}`);
+  }else if(m.id === 0x6F){ log("ANT-Stick bereit"); }
+}
+
+async function antRepair(names){
+  for(const [n, c] of Object.entries(CH)){
+    if(!names.includes(c.name)) continue;
+    lsSet(c.key, 0); c.devNo = null; c.asked = false; c.lastRx = 0;
+    if(ant.dev && ant.dev.opened){ await antSend(0x4C, [+n]); await sleep(300); await antSend(0x41, [+n]); await sleep(200); await antOpenChannel(+n); }
+  }
+  if(!ant.dev) setSrcText(names.includes("hr") ? 2 : 0, "wird beim Verbinden neu gesucht", "");
+}
+
+// Bereits erlaubten Stick automatisch wieder öffnen
+async function usbAuto(){
+  if(!("usb" in navigator)) return;
+  const devs = await navigator.usb.getDevices();
+  if(devs.length){ try{ await usbOpen(devs[0]); }catch(e){ log("Auto-USB: "+e.message); } }
+}
+navigator.usb && navigator.usb.addEventListener("connect", e => { if(!ant.dev || !ant.dev.opened) usbOpen(e.device).catch(err=>log(err.message)); });
+navigator.usb && navigator.usb.addEventListener("disconnect", () => { $("sUsb").textContent = "Stick abgezogen"; $("dUsb").className = "dot"; });
+
+/* =====================================================================
+   Bluetooth-Fallback (Standard-Dienste FTMS / Cycling Power / Herzfrequenz)
+   ===================================================================== */
+function makeCrank(){ let prev=null, last=0, v=0;
+  return (revs, t, now) => { if(prev){ const dr=(revs-prev.r)&0xFFFF, dt=(t-prev.t)&0xFFFF; if(dr&&dt){ v=dr/(dt/1024)*60; last=now; } }
+    prev={r:revs,t}; if(now-last>3000) v=0; return v; }; }
+const bleCrank = makeCrank();
+async function bleConnect(hrOnly){
+  try{
+    const dev = await navigator.bluetooth.requestDevice(hrOnly
+      ? { filters:[{services:[0x180D]}] }
+      : { filters:[{services:[0x1826]},{services:[0x1818]}], optionalServices:[0x1826,0x1818,0x180D] });
+    const srv = await dev.gatt.connect(); const got = [];
+    const sub = async (svc, ch, fn) => { try{ const c = await (await srv.getPrimaryService(svc)).getCharacteristic(ch);
+      c.addEventListener("characteristicvaluechanged", e => fn(e.target.value)); await c.startNotifications(); got.push(svc.toString(16)); }catch(e){} };
+    if(!hrOnly){
+      await sub(0x1826, 0x2AD2, dv => { const f=dv.getUint16(0,true); let i=2, cad=null, p=null;
+        if(!(f&1)) i+=2; if(f&2) i+=2; if(f&4){ cad=dv.getUint16(i,true)/2; i+=2; } if(f&8) i+=2; if(f&16) i+=3; if(f&32) i+=2;
+        if(f&64){ p=dv.getInt16(i,true); i+=2; } if(p!==null) feedPower(p, cad, "BLE FTMS"); });
+      await sub(0x1818, 0x2A63, dv => { const f=dv.getUint16(0,true), p=dv.getInt16(2,true); let i=4, cad=null;
+        if(f&1) i+=1; if(f&4) i+=2; if(f&16) i+=6; if(f&32) cad=bleCrank(dv.getUint16(i,true), dv.getUint16(i+2,true), Date.now());
+        feedPower(p, cad, "BLE Leistung"); });
+    }
+    await sub(0x180D, 0x2A37, dv => feedHr((dv.getUint8(0)&1) ? dv.getUint16(1,true) : dv.getUint8(1)));
+    log(`BLE ${dev.name}: Dienste ${got.join(", ") || "keine Standarddienste"}`);
+    if(hrOnly){ $("sHr").textContent = dev.name + " (BLE)"; $("dHr").className = "dot on"; }
+    else { $("sPow").textContent = dev.name + " (BLE) " + (got.length ? "" : "– keine Standarddaten!"); $("dPow").className = got.length ? "dot on" : "dot"; }
+  }catch(e){ if(e.name !== "NotFoundError") warn("Bluetooth: "+e.message); }
+}
+
+/* =====================================================================
+   Demo-Daten (zum Testen ohne Rad)
+   ===================================================================== */
+let demoTimer = null;
+function demo(){
+  if(demoTimer){ clearInterval(demoTimer); demoTimer = null; log("Demo aus"); return; }
+  let k = 0;
+  demoTimer = setInterval(() => { k++;
+    const p = 120 + 60*Math.sin(k/40) + 20*Math.random(); feedPower(p, 82 + 6*Math.sin(k/15), "Demo"); feedHr(135 + 15*Math.sin(k/50));
+  }, 250);
+  $("sPow").textContent = "Demo-Daten"; $("dPow").className = "dot on"; log("Demo an");
+}
+
+/* =====================================================================
+   Aufnahme
+   ===================================================================== */
+let mode = "free", rec = null, tick = null, wakeLock = null;
+document.querySelectorAll("#modeSel button").forEach(b => b.onclick = () => {
+  mode = b.dataset.mode; document.querySelectorAll("#modeSel button").forEach(x => x.classList.toggle("sel", x === b));
+});
+
+function startRide(resume){
+  rec = resume || { start: Date.now(), mode, S: [], paused: false, rampT0: null };
+  mode = rec.mode;
+  show("ride"); keepAwake();
+  if(!tick) tick = setInterval(step, 1000);
+  render();
+}
+
+function step(){
+  const raw = fresh(live.pRaw, live.pT) ?? 0, cad = fresh(live.cad, live.cT) ?? 0, hr = fresh(live.hr, live.hT, 6000);
+  const p = Math.round(corr(raw));
+  live.pNow = p; live.cadNow = Math.round(cad); live.hrNow = hr ? Math.round(hr) : null;
+  if(rec && !rec.paused){
+    const moving = raw > 0 || cad > 0;
+    if(moving || rec.S.length){                                   // Aufnahme beginnt mit dem ersten Tritt
+      if(rec.mode === "ramp" && rec.rampT0 === null && moving) rec.rampT0 = rec.S.length;
+      const spd = C.virtualSpeed(p, cfg.mass);
+      const prev = rec.S.length ? rec.S[rec.S.length-1].dist : 0;
+      rec.S.push({ t: Date.now(), p, raw: Math.round(raw), cad: Math.round(cad), hr: live.hrNow, spd, dist: prev + spd });
+      if(rec.S.length % 10 === 0) persist();
+    }
+  }
+  render();
+}
+
+function rampTarget(){
+  if(!rec || rec.mode !== "ramp" || rec.rampT0 === null) return null;
+  const sec = rec.S.length - rec.rampT0;
+  return { w: cfg.rampStart + cfg.rampStep * Math.floor(sec/60), left: 60 - sec % 60, stage: Math.floor(sec/60) + 1 };
+}
+
+const ZCOL = ["--z1","--z2","--z3","--z4","--z5","--z6","--z7"];
+function render(){
+  // Setup-Livewerte
+  $("lP").textContent = fresh(live.pRaw, live.pT) !== null ? Math.round(corr(live.pRaw)) : "–";
+  $("lC").textContent = fresh(live.cad, live.cT) !== null ? Math.round(live.cad) : "–";
+  $("lH").textContent = fresh(live.hr, live.hT, 6000) !== null ? Math.round(live.hr) : "–";
+  if(!rec) return;
+  const S = rec.S, n = S.length;
+  // 3-s-Mittel für ruhige Anzeige
+  const last3 = S.slice(-3).map(s => s.p), p3 = last3.length ? Math.round(last3.reduce((a,b)=>a+b,0)/last3.length) : live.pNow || 0;
+  const z = C.zoneOf(p3, cfg.ftp);
+  const ride = $("ride");
+  ride.style.background = getComputedStyle(document.documentElement).getPropertyValue(ZCOL[z]);
+  ride.classList.toggle("dark", z === 1 || z === 6 || z === 5);
+  $("rZone").textContent = `${C.ZONES[z][2]} ${C.ZONES[z][3]}`;
+  $("rP").textContent = p3;
+  $("rC").textContent = live.cadNow ?? 0;
+  $("rH").textContent = live.hrNow ?? "–";
+  $("rTime").textContent = fmt(n) + (rec.paused ? " ⏸" : "");
+  $("rD").textContent = n ? (S[n-1].dist/1000).toFixed(1) : "0.0";
+  const p = S.map(s=>s.p);
+  $("rAvg").textContent = n ? Math.round(p.reduce((a,b)=>a+b,0)/n) : 0;
+  $("rNp").textContent = Math.round(C.np(p));
+  $("rPct").textContent = Math.round(p3 / cfg.ftp * 100);
+  const src = fresh(live.pRaw, live.pT) !== null ? live.src : "⚠ keine Leistungsdaten";
+  $("connInfo").textContent = src;
+  const rt = rampTarget(), tEl = $("rTarget");
+  if(rec.mode === "ramp"){
+    tEl.classList.remove("hidden");
+    if(!rt) tEl.textContent = "Rampentest: lostreten zum Starten";
+    else{
+      const diff = p3 - rt.w, arrow = diff < -15 ? "▲ mehr" : diff > 15 ? "▼ weniger" : "✓";
+      tEl.innerHTML = `Ziel <b class="num">${rt.w} W</b> <span class="arrow">${arrow}</span><small>Stufe ${rt.stage} · nächste in ${rt.left} s</small>`;
+    }
+  }else tEl.classList.add("hidden");
+}
+const fmt = s => { const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60; return (h ? h+":"+String(m).padStart(2,"0") : m)+":"+String(x).padStart(2,"0"); };
+
+function persist(){ try{ localStorage.setItem("ic5_rec", JSON.stringify(rec)); }catch(e){} }
+function clearPersist(){ try{ localStorage.removeItem("ic5_rec"); }catch(e){} }
+
+function stopRide(){
+  clearInterval(tick); tick = null;
+  if(wakeLock){ wakeLock.release().catch(()=>{}); wakeLock = null; }
+  // Stillstand am Ende abschneiden
+  let e = rec.S.length; while(e > 0 && rec.S[e-1].raw === 0 && rec.S[e-1].cad === 0) e--;
+  rec.S = rec.S.slice(0, e);
+  persist();
+  showSummary();
+}
+
+function showSummary(){
+  show("summary");
+  const S = rec.S;
+  if(S.length < 10){ $("sumStats").innerHTML = "<p class='note'>Zu wenig Daten aufgezeichnet.</p>"; $("btnFit").disabled = true; return; }
+  $("btnFit").disabled = false;
+  const s = C.summarize(S, cfg.ftp);
+  rec.sum = s;
+  const st = [["Dauer", fmt(s.n)], ["Distanz", (s.dist/1000).toFixed(1)+" km"], ["Ø Leistung", Math.round(s.avg)+" W"],
+    ["NP", Math.round(s.np)+" W"], ["Max", Math.round(s.max)+" W"], ["Arbeit", Math.round(s.work/1000)+" kJ"],
+    ["IF / TSS", s.if.toFixed(2)+" / "+Math.round(s.tss)], ["Ø Puls", s.hrAvg ? Math.round(s.hrAvg) : "–"],
+    ["Ø U/min", Math.round(s.cadAvg)], ["Beste 5 min", Math.round(s.best5)+" W"]];
+  $("sumStats").innerHTML = st.map(([k,v]) => `<div class="stat"><span>${k}</span><b class="num">${v}</b></div>`).join("");
+  const mx = Math.max(...s.zt, 1);
+  $("sumZones").innerHTML = s.zt.map((t,i) => `<div class="zrow"><span class="zl">${C.ZONES[i][2]}</span><span class="bar"><i style="width:${t/mx*100}%;background:var(${ZCOL[i]})"></i></span><span class="zt">${fmt(t)}</span></div>`).join("");
+  const rr = $("rampResult");
+  if(rec.mode === "ramp" && s.best1 > 0){
+    const ftp = Math.round(0.75 * s.best1);
+    rr.innerHTML = `Rampentest – beste 1-min-Leistung ${Math.round(s.best1)} W<b class="num">FTP ≈ ${ftp} W</b>
+      <button class="btn primary" id="btnTakeFtp">Als FTP übernehmen</button>`;
+    rr.classList.remove("hidden");
+    $("btnTakeFtp").onclick = () => { cfg.ftp = ftp; lsSet("cfg", cfg); $("cFtp").value = ftp; $("btnTakeFtp").textContent = "Übernommen ✓"; };
+  }else rr.classList.add("hidden");
+}
+
+async function saveFit(){
+  const s = rec.sum || C.summarize(rec.S, cfg.ftp);
+  const bytes = C.fitEncode(rec.S, s, cfg.ftp, rec.S[0].t);
+  const d = new Date(rec.S[0].t), pad = x => String(x).padStart(2,"0");
+  const name = `IC5_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.fit`;
+  const file = new File([bytes], name, {type:"application/octet-stream"});
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file], title:name}); clearPersist(); return; }catch(e){ if(e.name === "AbortError") return; }
+  }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  clearPersist();
+}
+
+function show(id){ for(const s of ["setup","ride","summary"]) $(s).classList.toggle("hidden", s !== id); }
+async function keepAwake(){ try{ if("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); }catch(e){} }
+document.addEventListener("visibilitychange", () => { if(tick && document.visibilityState === "visible") keepAwake(); });
+
+/* ---------- Buttons ---------- */
+$("btnUsb").onclick = () => usbConnect(false);
+$("btnUsbAll").onclick = () => usbConnect(true);
+$("btnBle").onclick = () => bleConnect(false);
+$("btnBleHr").onclick = () => bleConnect(true);
+$("btnDemo").onclick = demo;
+$("btnRepairPow").onclick = () => antRepair(["pow","fec"]);
+$("btnRepairHr").onclick = () => antRepair(["hr"]);
+$("btnStart").onclick = () => startRide(null);
+$("btnPause").onclick = () => { rec.paused = !rec.paused; $("btnPause").textContent = rec.paused ? "Weiter" : "Pause"; render(); };
+$("btnStop").onclick = () => { if(confirm("Fahrt beenden?")) stopRide(); };
+$("btnFit").onclick = saveFit;
+$("btnNew").onclick = () => { rec = null; clearPersist(); show("setup"); };
+window.addEventListener("beforeunload", e => { if(tick){ persist(); e.preventDefault(); e.returnValue = ""; } });
+setInterval(render, 1000);
+
+/* ---------- Wiederherstellung nach Absturz / Neuladen ---------- */
+const old = lsGet("rec", null);
+if(old && old.S && old.S.length > 10){
+  $("recInfo").textContent = `${new Date(old.start).toLocaleString()}, ${fmt(old.S.length)}`;
+  $("recover").classList.remove("hidden");
+  $("btnRecResume").onclick = () => { $("recover").classList.add("hidden"); startRide(old); };
+  $("btnRecSave").onclick = () => { $("recover").classList.add("hidden"); rec = old; showSummary(); };
+  $("btnRecDrop").onclick = () => { clearPersist(); $("recover").classList.add("hidden"); };
+}
+usbAuto();
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>
