@@ -15,10 +15,9 @@ Leistung korrigieren, virtuelle Distanz berechnen und als **FIT-Datei** (Indoor 
 1. Brustgurt anlegen (Decathlon HRM Dual, ANT+). Der Puls kommt **ausschließlich** vom Gurt.
 2. Rad antreten → ANT+-Stick per USB-C-OTG ans Handy → App → „Verbinden“.
 3. Prüfen, ob U/min zum Treten passen (gekoppelt wird das *nächstgelegene* Rad, Geräte-Nr. wird gespeichert).
-4. **Radnummer** eintragen, die am Rad klebt – beim nächsten Mal wird das Rad an seiner Geräte-Nr. wiedererkannt
-   und rechnet mit seiner eigenen Korrektur.
-5. Modus wählen (Freie Fahrt / Rampentest) → Start → Beenden → „FIT-Datei speichern“.
-6. Upload: connect.garmin.com → Daten importieren; strava.com/upload/select.
+4. Modus wählen (Freie Fahrt / Rampentest) → Start → Beenden → „FIT-Datei speichern / teilen“.
+5. Hochladen: **Teilen** bietet die Datei direkt der Garmin-Connect-App an. Erscheint sie dort nicht,
+   speichern und über die Knöpfe „Garmin Connect öffnen“ bzw. „Strava öffnen“ von Hand importieren.
 
 ### Statt Import: direkt auf der Uhr aufzeichnen
 „An Uhr senden“ einschalten → die App sendet die korrigierte Leistung als ANT+-Smart-Trainer.
@@ -38,11 +37,12 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
 |---|---|
 | ANT+ | WebUSB, Vendor 0x0FCF (USB-m direkt, USB2/0x1008 über CP210x-Init). Kanäle: Bicycle Power (Typ 11, Seite 0x10), FE-C (Typ 17, Seite 0x19), HRM (Typ 120). Näherungssuche Bin 3, Geräte-Nr. in localStorage. |
 | Leistung | aus kumulierter Leistung (ΔAccPower/ΔEventCount), 0 W nach 3 s ohne Ereignis; Korrektur P = a·P_IC5 + b **je Rad** |
-| Räder | Bibliothek `BIKES_SEED` (Rad 1–12) mit a, b, Kalibrierdatum, n und sd. Zuordnung ANT+-Geräte-Nr. → Radnummer wird beim ersten Eintragen gelernt und in localStorage gehalten; BLE-Name („IC5-07“) nur als Rückfall. Liste nach Unsicherheit sd/√n sortiert, ★ = genauestes Rad. Rad und benutztes a/b werden je Fahrt mitgeschrieben. |
+| Anpassung | **Ein** Faktorpaar für alle Räder: P = a·P<sub>IC5</sub> + b, in den Einstellungen änderbar und je Fahrt mitgeschrieben. Eine Bibliothek je Rad gab es bis 10.10.2026; sie ist entfernt, weil die Räder bei kalibrierter Bremse nah beieinanderliegen und der Aufwand, zwölf Räder einzeln zu vermessen, den Gewinn nicht aufwog. |
 | Puls | **nur Brustgurt**: ANT+ Gerätetyp 120 oder BLE 0x180D auf einem eigenen Gurt-Gerät. HF von Rad/Konsole wird verworfen, ebenso ein eingefrorener Wert (Schlagzähler steht > 10 s → kein Puls). |
 | Distanz | virtuelle Geschwindigkeit in der Ebene: P = v·(½ρ·CdA·v² + Crr·m·g), ρ=1,2, CdA=0,32, Crr=0,004 |
 | Auswertung | 7 Coggan-Zonen, NP (30-s-Mittel⁴), IF, TSS, Bestwerte 1/5/20 min |
 | Rampentest | Start/Schritt einstellbar (Standard 100 W, +20 W/min), FTP = 0,75 × beste 1-min-Leistung |
+| Hochladen | **Vollautomatisch nicht möglich.** Garmins Connect-Developer-Programm nimmt seit 2026 keine neuen Anträge an (Stand 10.10.2026), und Strava kennt kein PKCE: der Token-Tausch verlangt ein Client-Secret, das eine Seite ohne Server nicht geheim halten kann. Deshalb Web Share API (`navigator.share`) als kürzester Weg plus Direktlinks zu beiden Import-Seiten. |
 | Export | eigener FIT-Encoder: file_id, event, record, lap, session (sport 2 / sub_sport 6), activity |
 | An die Uhr senden | Stick zusätzlich als **ANT+-Master** (Kanal 3, Gerätetyp 17 FE-C, Übertragungstyp 5, 4 Hz). Gesendet werden die **korrigierte** Leistung und die **virtuelle** Geschwindigkeit, Seiten 0x10/0x19 im Wechsel, alle 66 Nachrichten 0x50/0x51. Takt kommt von EVENT_TX, nicht von `setInterval`. Eigene Geräte-Nr. wird gewürfelt und gespeichert; koppelt der Empfangskanal sie versehentlich, wird sie abgelehnt (sonst liefe die Korrektur im Kreis). |
 | Robustheit | Fahrt alle 10 s in localStorage, Wiederherstellung nach Neuladen; Wake Lock; Service Worker (offline) |
@@ -107,10 +107,8 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
 - [ ] Prüfen, ob die Konsole über BLE Standardprofile sendet (0x1826 / 0x1818) – dann ginge der
       Empfang ohne Dongle. Zum Senden an die Uhr bleibt der Dongle in jedem Fall nötig.
 - [ ] a/b sauber bestimmen: Stufentest (je 8 min ~100/130/160 W Display, 85 U/min, Brustgurt) vs. Rennrad
-- [ ] a/b **je Rad** messen und in die Bibliothek eintragen (a, b, cal, n, sd) – erst dann ist die
-      Rangliste „genauestes Rad“ aussagekräftig
-- [ ] Zahl der Räder im Verein prüfen – die Bibliothek ist mit 1–12 vorbelegt, neue Nummern legt die App
-      beim Eintragen selbst an
+- [ ] Prüfen, ob „Teilen“ auf dem S23 die Garmin-Connect-App in der Liste anbietet (hängt davon ab, ob
+      Chrome den MIME-Typ durchreicht und Garmin einen Intent für FIT registriert)
 - [ ] Senden an die Uhr am Rad prüfen (koppelt die Venu 3 den Kanal, stimmen Leistung/Distanz, hält der Stick 4 Kanäle)
 - ~~Automatischer Upload zu Strava / Garmin Connect~~ – **verworfen (09.10.2026).** Die Uhr zeichnet über
   den FE-C-Sender selbst auf und synchronisiert von sich aus nach Garmin Connect, von dort weiter zu Strava.
