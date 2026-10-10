@@ -51,12 +51,6 @@ label.f:first-of-type{border-top:0}
 label.f small{display:block;color:var(--dim);font-size:12px}
 label.f input{width:96px;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--txt);font-size:17px;text-align:right}
 .note{font-size:13px;color:var(--dim);line-height:1.45}
-.brow{display:flex;align-items:baseline;gap:10px;font-size:14px;border-top:1px solid var(--line);padding:7px 0}
-.brow:first-child{border-top:0}
-.brow .n{width:30px;font-weight:800;flex:none}
-.brow .m{flex:1;color:var(--dim);font-size:13px}
-.brow .u{color:var(--dim);font-size:13px;flex:none}
-.brow.act{color:var(--acc)} .brow.act .m,.brow.act .u{color:var(--acc)}
 .warn{background:#3a2a10;color:#f7c56b;border-radius:12px;padding:10px 12px;font-size:14px;margin-bottom:12px}
 details summary{cursor:pointer;font-weight:650;color:var(--dim);padding:4px 0}
 pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--dim);max-height:180px;overflow:auto}
@@ -150,17 +144,12 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--dim);ma
   </div>
 
   <div class="card">
-    <h2>Rad</h2>
-    <label class="f"><span>Radnummer<small id="sBike">kein Rad verbunden</small></span>
-      <input id="cBikeNr" type="number" inputmode="numeric" min="1" max="99" placeholder="–"></label>
-    <label class="f"><span>Faktor a<small>P = a · P<sub>IC5</sub> + b, für dieses Rad</small></span><input id="cA" type="number" step="0.01" inputmode="decimal"></label>
+    <h2>Anpassung der Leistung</h2>
+    <label class="f"><span>Faktor a<small>P = a · P<sub>IC5</sub> + b</small></span><input id="cA" type="number" step="0.01" inputmode="decimal"></label>
     <label class="f"><span>Offset b<small>W</small></span><input id="cB" type="number" step="1" inputmode="numeric"></label>
-    <p class="note" id="bikeHint"></p>
-    <details>
-      <summary>Alle Räder – welches ist das genaueste?</summary>
-      <div id="bikeList"></div>
-      <p class="note">Sortiert nach Unsicherheit der Kalibrierung (sd/√n). „nicht kalibriert“ heißt: Rad benutzt den Standardfaktor a = <span id="bikeDefA"></span> – diese Räder sind nicht genauer oder schlechter, nur ungeprüft.</p>
-    </details>
+    <p class="note">Bei <b>kalibrierter Bremse</b> (Startbildschirm der Konsole: Pfeil-runter + Licht ≥ 3 s)
+      scheint a = 1 zu stimmen – am 09.10.2026 gegen die Aufzeichnung einer Venu 3 geprüft.
+      Steht die Bremse daneben, zeigt die Konsole zu wenig und a muss größer werden.</p>
   </div>
 
   <div class="mode" id="modeSel">
@@ -185,6 +174,7 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--dim);ma
       </div>
       <div class="row" style="margin:8px 0">
         <button class="btn small" id="btnDemo">Demo-Daten</button>
+        <button class="btn small" id="btnLogCopy">Bericht kopieren</button>
       </div>
       <pre id="log"></pre>
     </details>
@@ -220,7 +210,15 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--dim);ma
     <div id="sumZones"></div>
   </div>
   <button class="btn primary big" id="btnFit">FIT-Datei speichern / teilen</button>
-  <p class="note">Hochladen: <b>connect.garmin.com</b> → Symbol „+“ / Daten importieren → FIT-Datei. Strava: <b>strava.com/upload/select</b>. Die Datei ist als „Indoor Cycling“ markiert.</p>
+  <div class="row" style="margin-top:8px">
+    <button class="btn small" id="btnGarmin">Garmin Connect öffnen</button>
+    <button class="btn small" id="btnStrava">Strava öffnen</button>
+  </div>
+  <p class="note">Teilen bietet die Datei direkt der Garmin-Connect-App an – erscheint sie dort nicht,
+    erst speichern, dann die Import-Seite öffnen und die Datei aus „Downloads“ wählen.
+    Ein vollautomatischer Upload ist nicht möglich: Garmins Entwicklerprogramm nimmt seit 2026 keine
+    neuen Anträge an, und Strava verlangt beim Token-Tausch ein Client-Secret, das eine Seite ohne
+    Server nicht geheim halten kann. Die Datei ist als „Indoor Cycling“ markiert.</p>
   <button class="btn big" id="btnNew" style="margin-top:8px">Neue Fahrt</button>
 </section>
 
@@ -286,39 +284,6 @@ const Core = (() => {
       if(beats === null || p.beats !== beats){ beats = p.beats; tChange = now; }
       return (now - tChange > stale) ? null : p.hr;
     };
-  }
-
-  /* ---------- Rad-Bibliothek: Kalibrierung je IC5 ---------- */
-  // Die Räder im Vereinsraum sind durchnummeriert. Jedes bekommt sein eigenes P = a·P_IC5 + b,
-  // weil Bremse und Dehnungsmessung je Rad streuen (Handbuch: ±10 %).
-  //   a, b  – Korrektur dieses Rads
-  //   cal   – Datum des Vergleichs mit dem Powermeter (null = nie gemessen -> Standardwert)
-  //   n     – Zahl der Vergleichspunkte, sd – Streuung der Residuen in W (Unsicherheit)
-  const BIKE_DEF = { a: 1.5, b: 0 };                // Stand 09.10.2026: noch kein Rad einzeln gemessen
-  const BIKES_SEED = (() => { const o = {}; for(let i=1;i<=12;i++) o[i] = {a:BIKE_DEF.a, b:BIKE_DEF.b, cal:null, n:0, sd:null, note:""}; return o; })();
-  // Radnummer aus einem Bluetooth-Namen ("IC5-07", "ICG Bike 7") – 1–2-stellige Zahl am Ende.
-  // Vor der Zahl muss ein Trennzeichen stehen, sonst läse "IC5" die Modellbezeichnung als Rad 5.
-  // Lieber nicht erkennen (Nutzer trägt die Nummer ein) als das falsche Rad annehmen.
-  function bikeNrFromName(name){
-    const m = String(name||"").match(/(?:^|[\s#_.-])0*(\d{1,2})\s*$/);
-    const nr = m ? +m[1] : 0;
-    return nr >= 1 && nr <= 99 ? nr : null;
-  }
-  // Unsicherheit der Kalibrierung in W: sd/√n. Nie gemessen -> unendlich (schlechtestes Rad).
-  function bikeUncert(b){ return (b && b.cal && b.n > 0) ? (b.sd == null ? 99 : b.sd)/Math.sqrt(b.n) : Infinity; }
-  // Räder nach Güte der Kalibrierung sortiert – das erste ist das genaueste.
-  function bikeRanking(bikes){
-    return Object.keys(bikes).map(Number).sort((x,y) => (bikeUncert(bikes[x]) - bikeUncert(bikes[y])) || (x - y));
-  }
-  // Welches Rad hängt dran? Geräte-Nr. (ANT+) schlägt Name (BLE), weil ANT+ keine Namen kennt.
-  function resolveBike(devNo, name, learned, bikes, fallback){
-    const f = fallback || BIKE_DEF;
-    let nr = null, how = null;
-    if(devNo && learned && learned[devNo] != null){ nr = +learned[devNo]; how = "Geräte-Nr."; }
-    if(nr === null){ const k = bikeNrFromName(name); if(k){ nr = k; how = "Name"; } }
-    const b = (nr !== null && bikes) ? bikes[nr] : null;
-    return { nr, how, a: b ? b.a : f.a, b: b ? b.b : f.b,
-             calibrated: !!(b && b.cal), uncert: bikeUncert(b), cfg: b };
   }
 
   /* ---------- ANT+ FE-C senden: die App als Indoor-Trainer für Uhr/Edge ----------
@@ -468,7 +433,6 @@ const Core = (() => {
 
   return { ANT_KEY, antMsg, antParse, makePowerCalc, parsePowerPage, parseFecPage, parseHrPage, makeHrCalc,
            FE_TRAINER, feNextPage, feBuildPage, makeFeAccum,
-           BIKE_DEF, BIKES_SEED, bikeNrFromName, bikeUncert, bikeRanking, resolveBike,
            virtualSpeed, ZONES, zoneOf, np, bestAvg, summarize, fitEncode, crc16, FIT_EPOCH };
 })();
 if(typeof module !== "undefined") module.exports = Core;
@@ -491,58 +455,16 @@ for(const [k,id] of Object.entries(inputs)){
   $(id).addEventListener("change", () => { const v = parseFloat($(id).value); if(!isNaN(v)){ cfg[k] = v; lsSet("cfg", cfg); } });
 }
 
-/* ---------- Räder: Bibliothek + gelernte Zuordnung Geräte-Nr. -> Radnummer ----------
-   Beides im Gerät gespeichert, damit am Rad ohne Laptop nachgetragen werden kann. */
-const bikes   = Object.assign({}, C.BIKES_SEED, lsGet("bikes", {}));
-const bikeMap = lsGet("bikemap", {});                 // { "<ANT+ Geräte-Nr.>": Radnummer }
-// BLE-Name bzw. von Hand gewählte Nummer – überlebt das Neuladen, falls (noch) kein Stick dranhängt.
-let bikeName = lsGet("bikemanual", null) ? "Rad " + lsGet("bikemanual", null) : "";
-let bike = C.resolveBike(null, bikeName, bikeMap, bikes, cfg);
-function bikeDevNo(){ return (CH[0] && CH[0].devNo) || (CH[1] && CH[1].devNo) || null; }
-function updateBike(){
-  bike = C.resolveBike(bikeDevNo(), bikeName, bikeMap, bikes, cfg);
-  renderBike();
-}
-function saveBikes(){ lsSet("bikes", bikes); lsSet("bikemap", bikeMap); }
-
-function renderBike(){
-  const nr = bike.nr, dev = bikeDevNo();
-  $("cBikeNr").value = nr ?? "";
-  $("cA").value = bike.a; $("cB").value = bike.b;
-  $("bikeDefA").textContent = C.BIKE_DEF.a;
-  $("sBike").textContent = nr === null
-    ? (dev ? `Gerät #${dev} – noch keiner Nummer zugeordnet` : "kein Rad verbunden")
-    : `Rad ${nr} über ${bike.how}` + (dev ? ` · Gerät #${dev}` : "");
-  $("bikeHint").innerHTML = nr === null
-    ? "Nummer eintragen, die am Rad klebt – sie wird mit der ANT+-Geräte-Nr. gespeichert und beim nächsten Mal von selbst erkannt."
-    : bike.calibrated
-      ? `Kalibriert am ${bike.cfg.cal} · ${bike.cfg.n} Vergleichspunkte · Unsicherheit ±${bike.uncert.toFixed(1)} W.`
-      : `<b>Dieses Rad ist nicht kalibriert.</b> Es rechnet mit dem Standard a = ${C.BIKE_DEF.a}; laut Handbuch streut die Konsole ±10 %.`;
-  const rank = C.bikeRanking(bikes), best = rank.find(k => bikes[k].cal);
-  $("bikeList").innerHTML = rank.map(k => {
-    const b = bikes[k], mark = k === nr ? "●" : k === best ? "★" : "";
-    return `<div class="brow${k === nr ? " act" : ""}"><span class="n">${mark}${k}</span>`
-         + `<span class="m">a = ${b.a}${b.b ? " · b = " + b.b + " W" : ""}${b.note ? " · " + b.note : ""}</span>`
-         + `<span class="u">${b.cal ? "±" + C.bikeUncert(b).toFixed(1) + " W" : "nicht kalibriert"}</span></div>`;
-  }).join("");
-}
-
-$("cBikeNr").addEventListener("change", () => {
-  const v = parseInt($("cBikeNr").value, 10), dev = bikeDevNo();
-  if(!(v >= 1 && v <= 99)){ $("cBikeNr").value = bike.nr ?? ""; return; }
-  if(!bikes[v]) bikes[v] = { a: cfg.a, b: cfg.b, cal: null, n: 0, sd: null, note: "" };
-  if(dev) bikeMap[dev] = v; else { bikeName = "Rad " + v; lsSet("bikemanual", v); }
-  saveBikes(); updateBike();
-  log(`Rad ${v}` + (dev ? ` mit Gerät #${dev} verknüpft` : " von Hand gewählt"));
-});
+/* ---------- Anpassung der Leistung ----------
+   Ein Faktorpaar für alle Räder: P = a·P_IC5 + b. Eine Bibliothek je Rad gab es bis 10.10.2026,
+   sie ist wieder entfernt – bei kalibrierter Bremse liegen die Räder nah beieinander, und der
+   Aufwand, jedes einzeln zu vermessen, stand in keinem Verhältnis zum Gewinn. */
+$("cA").value = cfg.a; $("cB").value = cfg.b;
+// Reste der alten Bibliothek von Geräten entfernen, die eine frühere Fassung benutzt haben.
+for(const k of ["bikes", "bikemap", "bikemanual"]) try{ localStorage.removeItem("ic5_"+k); }catch(e){}
 for(const [k, id] of [["a","cA"], ["b","cB"]]) $(id).addEventListener("change", () => {
   const v = parseFloat($(id).value); if(isNaN(v)) return;
-  if(bike.nr === null){ cfg[k] = v; lsSet("cfg", cfg); }
-  else{
-    if(!bikes[bike.nr]) bikes[bike.nr] = { a: cfg.a, b: cfg.b, cal: null, n: 0, sd: null, note: "" };
-    bikes[bike.nr][k] = v; saveBikes();
-  }
-  updateBike();
+  cfg[k] = v; lsSet("cfg", cfg);
 });
 
 /* ---------- Als App aufs Handy (dann kein Laptop und kein Netz nötig) ---------- */
@@ -563,6 +485,44 @@ window.addEventListener("appinstalled", () => $("install").classList.add("hidden
 /* ---------- Log ---------- */
 function log(t){ const l=$("log"); l.textContent = new Date().toLocaleTimeString()+"  "+t+"\n"+l.textContent.slice(0,6000); }
 function warn(t){ $("warn").textContent = t; $("warn").classList.toggle("hidden", !t); }
+
+/* Bericht für die Fehlersuche: Zustand oben, Log darunter. Am Rad steht nur das Handy
+   zur Verfügung – aus einem <pre> lässt sich dort kaum sauber markieren. */
+function logReport(){
+  const d = ant.dev, L = [];
+  L.push("IC5 Ride – Diagnosebericht " + new Date().toLocaleString());
+  L.push("Browser: " + navigator.userAgent);
+  L.push("Stick: " + (d && d.opened
+    ? `${d.manufacturerName||"?"} ${d.productName||"?"} ${d.vendorId.toString(16)}:${d.productId.toString(16)}`
+      + `, ${TX.maxCh === null ? "Kanalzahl unbekannt" : TX.maxCh + " Kanäle"}`
+    : "nicht verbunden"));
+  L.push("Kanäle: " + Object.values(CH).map(c => `${c.name}=${c.devNo || "offen"}`).join(", "));
+  L.push(`Sender: ${TX.on ? "an" : "aus"}, eigene Geräte-Nr. ${TX.devNo}`
+    + (TX.on ? `, ${TX.events} Ereignisse, ${(TX.dist/1000).toFixed(2)} km gesendet` : ""));
+  L.push(`Anpassung: a = ${cfg.a}, b = ${cfg.b} W`);
+  L.push(`Einstellungen: FTP ${cfg.ftp} W, Masse ${cfg.mass} kg`);
+  // Roh- und Korrekturwert getrennt: nur so lässt sich a/b gegen die Konsolenanzeige prüfen.
+  L.push(`Quelle: ${live.src || "–"} · Puls von ${live.hrSrc || "–"}`);
+  const r1 = v => v === null || v === undefined ? "–" : Math.round(v);
+  L.push(`Messwerte: roh ${r1(live.pRaw)} W → korrigiert ${live.pRaw === null ? "–" : Math.round(corr(live.pRaw))} W`
+    + ` · ${r1(live.cad)} U/min · ${r1(live.hr)} bpm`);
+  L.push("", "--- Log (neueste Zeile oben) ---", $("log").textContent.trim() || "(leer)");
+  return L.join("\n");
+}
+
+async function copyReport(){
+  const txt = logReport(), b = $("btnLogCopy"), old = "Bericht kopieren";
+  try{
+    await navigator.clipboard.writeText(txt);
+    b.textContent = "Kopiert ✓"; setTimeout(() => b.textContent = old, 2000);
+  }catch(e){
+    // Ohne Clipboard-Erlaubnis: Text markierbar anbieten, damit nichts verloren geht.
+    const t = document.createElement("textarea");
+    t.value = txt; t.style.cssText = "position:fixed;inset:8px;z-index:99;font-size:12px";
+    document.body.appendChild(t); t.select();
+    b.textContent = "Von Hand kopieren"; setTimeout(() => { t.remove(); b.textContent = old; }, 30000);
+  }
+}
 if(!("usb" in navigator) && !("bluetooth" in navigator)) warn("Dieser Browser kann weder USB noch Bluetooth. Bitte Chrome auf Android verwenden und die Seite über https öffnen.");
 
 /* ---------- Live-Zustand (von allen Quellen gefüttert) ---------- */
@@ -576,8 +536,8 @@ function feedHr(h, src){
   if(h > 0){ live.hr = h; live.hT = Date.now(); live.hrSrc = src; }
 }
 function fresh(v, t, ms=4000){ return (v !== null && Date.now()-t < ms) ? v : null; }
-// Korrektur mit den Werten des erkannten Rads; ohne erkanntes Rad mit dem Standard aus den Einstellungen.
-const corr = raw => raw > 0 ? Math.max(0, bike.a*raw + bike.b) : 0;
+// Korrektur mit dem eingestellten Faktorpaar, für jedes Rad gleich.
+const corr = raw => raw > 0 ? Math.max(0, cfg.a*raw + cfg.b) : 0;
 
 /* =====================================================================
    ANT+ über WebUSB
@@ -710,7 +670,6 @@ async function antOpenChannel(n){
   await antSend(0x4B, [n]);                                     // öffnen
   c.devNo = saved || null; c.lastRx = 0;
   setSrcText(n, saved ? (c.name === "hr" ? `suche Brustgurt #${saved} …` : `suche Gerät #${saved} …`) : "suche nahes Gerät …", "wait");
-  if(c.name !== "hr") updateBike();
 }
 
 function setSrcText(n, t, state){
@@ -748,7 +707,7 @@ function antHandle(m){
       c.devNo = dn; lsSet(c.key, dn);
       log(`${c.name}: Gerät #${dn} (Typ ${type}) gespeichert`);
       if(c.name === "hr") setSrcText(n, `Brustgurt #${dn} gepinnt`, "on");
-      else { setSrcText(n, `Gerät #${dn} gekoppelt`, "on"); updateBike(); }
+      else setSrcText(n, `Gerät #${dn} gekoppelt`, "on");
     }
   }else if(m.id === 0x40){                                      // Kanal-Ereignis / Antwort
     const n = d[0], code = d[2];
@@ -808,8 +767,7 @@ async function bleConnect(hrOnly){
     }
     log(`BLE ${dev.name}: Dienste ${got.join(", ") || "keine Standarddienste"}`);
     if(hrOnly){ $("sHr").textContent = (dev.name||"Gurt") + " (BLE)"; $("dHr").className = "dot on"; }
-    else { bikeName = dev.name || ""; updateBike();
-      $("sPow").textContent = dev.name + " (BLE) " + (got.length ? "" : "– keine Standarddaten!"); $("dPow").className = got.length ? "dot on" : "dot"; }
+    else { $("sPow").textContent = dev.name + " (BLE) " + (got.length ? "" : "– keine Standarddaten!"); $("dPow").className = got.length ? "dot on" : "dot"; }
   }catch(e){ if(e.name !== "NotFoundError") warn("Bluetooth: "+e.message); }
 }
 
@@ -836,7 +794,7 @@ document.querySelectorAll("#modeSel button").forEach(b => b.onclick = () => {
 
 function startRide(resume){
   // Rad und seine Korrektur mit aufzeichnen – sonst ist später nicht nachvollziehbar, womit gerechnet wurde.
-  rec = resume || { start: Date.now(), mode, S: [], paused: false, rampT0: null, bike: bike.nr, a: bike.a, b: bike.b };
+  rec = resume || { start: Date.now(), mode, S: [], paused: false, rampT0: null, a: cfg.a, b: cfg.b };
   mode = rec.mode;
   show("ride"); keepAwake();
   if(!tick) tick = setInterval(step, 1000);
@@ -891,7 +849,7 @@ function render(){
   $("rNp").textContent = Math.round(C.np(p));
   $("rPct").textContent = Math.round(p3 / cfg.ftp * 100);
   const src = fresh(live.pRaw, live.pT) !== null ? live.src : "⚠ keine Leistungsdaten";
-  $("connInfo").textContent = src + (rec.bike != null ? ` · Rad ${rec.bike} (a = ${rec.a})` : "");
+  $("connInfo").textContent = src + (rec.a != null ? ` · a = ${rec.a}` : "");
   const rt = rampTarget(), tEl = $("rTarget");
   if(rec.mode === "ramp"){
     tEl.classList.remove("hidden");
@@ -928,7 +886,7 @@ function showSummary(){
     ["NP", Math.round(s.np)+" W"], ["Max", Math.round(s.max)+" W"], ["Arbeit", Math.round(s.work/1000)+" kJ"],
     ["IF / TSS", s.if.toFixed(2)+" / "+Math.round(s.tss)], ["Ø Puls", s.hrAvg ? Math.round(s.hrAvg) : "–"],
     ["Ø U/min", Math.round(s.cadAvg)], ["Beste 5 min", Math.round(s.best5)+" W"],
-    ["Rad", rec.bike != null ? rec.bike : "–"], ["Korrektur", `a = ${rec.a ?? "?"}${rec.b ? ", b = "+rec.b : ""}`]];
+    ["Korrektur", `a = ${rec.a ?? "?"}${rec.b ? ", b = "+rec.b : ""}`]];
   $("sumStats").innerHTML = st.map(([k,v]) => `<div class="stat"><span>${k}</span><b class="num">${v}</b></div>`).join("");
   const mx = Math.max(...s.zt, 1);
   $("sumZones").innerHTML = s.zt.map((t,i) => `<div class="zrow"><span class="zl">${C.ZONES[i][2]}</span><span class="bar"><i style="width:${t/mx*100}%;background:var(${ZCOL[i]})"></i></span><span class="zt">${fmt(t)}</span></div>`).join("");
@@ -966,6 +924,7 @@ $("btnUsbAll").onclick = () => usbConnect(true);
 $("btnBle").onclick = () => bleConnect(false);
 $("btnBleHr").onclick = () => bleConnect(true);
 $("btnDemo").onclick = demo;
+$("btnLogCopy").onclick = copyReport;
 $("btnTx").onclick = () => TX.on ? txStop() : txStart();
 $("btnRepairPow").onclick = () => antRepair(["pow","fec"]);
 $("btnRepairHr").onclick = () => antRepair(["hr"]);
@@ -973,6 +932,9 @@ $("btnStart").onclick = () => startRide(null);
 $("btnPause").onclick = () => { rec.paused = !rec.paused; $("btnPause").textContent = rec.paused ? "Weiter" : "Pause"; render(); };
 $("btnStop").onclick = () => { if(confirm("Fahrt beenden?")) stopRide(); };
 $("btnFit").onclick = saveFit;
+// Import-Seiten in neuem Tab: die App bleibt stehen, falls die Datei noch gebraucht wird.
+$("btnGarmin").onclick = () => window.open("https://connect.garmin.com/modern/import-data", "_blank", "noopener");
+$("btnStrava").onclick = () => window.open("https://www.strava.com/upload/select", "_blank", "noopener");
 $("btnNew").onclick = () => { rec = null; clearPersist(); show("setup"); };
 window.addEventListener("beforeunload", e => { if(tick){ persist(); e.preventDefault(); e.returnValue = ""; } });
 setInterval(render, 1000);
@@ -986,7 +948,6 @@ if(old && old.S && old.S.length > 10){
   $("btnRecSave").onclick = () => { $("recover").classList.add("hidden"); rec = old; showSummary(); };
   $("btnRecDrop").onclick = () => { clearPersist(); $("recover").classList.add("hidden"); };
 }
-updateBike();
 renderTx();
 usbAuto();
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
