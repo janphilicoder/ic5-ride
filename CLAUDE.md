@@ -1,10 +1,11 @@
 # CLAUDE.md – Arbeitsregeln für dieses Repo
 
 ## Kontext
-Web-App „IC5 Ride“ für das Life Fitness IC5 (ICG WattRate LCD, 2016) im Sportverein. Nutzer: Rennradfahrer
-mit Powermeter, Garmin-Uhr (Venu 3), Android-Handy (Samsung S23), CooSpo ANT+-USB-Stick (USB-C-OTG).
-Projektstand, Messwerte und offene Punkte stehen in **README.md** – vor jeder Änderung lesen und nach
-jeder relevanten Erkenntnis dort aktualisieren (Abschnitte „Projektstand“ und „Offen“).
+Web-App „IC5 Ride“ für Indoor-Cycling-Räder vom Typ Life Fitness IC5 (ICG WattRate LCD).
+Das Repo ist **öffentlich**: keine Messwerte, Trainingsdaten, Gerätenamen oder sonstigen
+persönlichen Angaben hineinschreiben – weder in Dateien noch in Commit-Nachrichten.
+Das README beschreibt nur, was die App tut, und nennt ihre Adresse; Projektstand und offene
+Punkte gehören nicht hinein.
 
 ## Kommunikation
 - Immer **Deutsch** antworten.
@@ -15,15 +16,19 @@ jeder relevanten Erkenntnis dort aktualisieren (Abschnitte „Projektstand“ un
 ## Randbedingungen der App
 - Läuft als **eine statische Seite** über GitHub Pages: https://janphilicoder.github.io/ic5-ride/
   Kein Build-Schritt, keine Abhängigkeiten, keine externen Skripte – alles in `index.html`.
-- Zielplattform: **Chrome auf Android** (WebUSB für ANT+, Web Bluetooth als Fallback). HTTPS ist Pflicht.
+- Zielplattform: **Chrome auf Android** (Web Bluetooth). HTTPS ist Pflicht.
+- Die App greift **auf kein Netz zu**: keine externen Skripte, kein `fetch` außer dem eigenen
+  Offline-Cache. Das soll so bleiben – jede neue Netzverbindung ist eine bewusste Entscheidung.
 - Bedienung im Kurs muss in < 1 min gehen, Anzeige groß und ohne Brille lesbar.
 - Keine Geheimnisse ins Repo (öffentlich!). Strava-Client-Secret o. Ä. nie committen.
 - `sw.js`: Cache-Namen (`ic5-vN`) bei jeder Auslieferung hochzählen.
 
 ## Aufbau von index.html
-- `<script id="core">`: reine Funktionen (ANT-Nachrichten/Parser, Leistungsberechnung, Physik,
-  Zonen/NP/TSS, FIT-Encoder). **Nur hier Logik ändern, die getestet werden kann.**
-- Zweites `<script>`: UI, WebUSB/ANT-Kanäle, Bluetooth, Aufnahme, Zusammenfassung, Export.
+- `<script id="core">`: reine Funktionen (Bluetooth-Parser, Physik, Zonen/NP/TSS, Workout-Plan,
+  FIT-Encoder). **Nur hier Logik ändern, die getestet werden kann.**
+- Zweites `<script>`: UI, Bluetooth-Verbindungen, Aufnahme, Zusammenfassung, Export.
+- In `innerHTML` nur selbst erzeugte Zahlen und Texte – Gerätenamen und andere Fremddaten
+  ausschließlich über `textContent`.
 
 ## Tests (vor jedem Commit)
 ```
