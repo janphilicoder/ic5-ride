@@ -68,6 +68,9 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--dim);ma
 .target .arrow{font-size:1.1em}
 .target small{display:block;font-size:.5em;opacity:.8}
 .target.work{box-shadow:inset 0 0 0 3px var(--acc)}
+.pick{position:fixed;left:10px;right:10px;bottom:10px;z-index:50;background:var(--card);
+  border:2px solid var(--acc);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.pick b{text-align:center}
 .planList{margin-top:10px;font-size:14px}
 .prow{display:flex;gap:10px;align-items:baseline;border-top:1px solid var(--line);padding:6px 0}
 .prow:first-child{border-top:0}
@@ -159,6 +162,8 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--dim);ma
     <button data-mode="ramp">Rampentest</button>
     <button data-mode="ftp20">20-min-Test</button>
     <button data-mode="vo2">VO₂max 4×4</button>
+    <button data-mode="i3030">30/30</button>
+    <button data-mode="maxp">Sprints</button>
   </div>
 
   <!-- Nur im VO2max-Modus: abweichende FTP für dieses eine Workout. Die gespeicherte
@@ -189,6 +194,32 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--dim);ma
       <p class="note">Norweger-Standard: 4 × 4 min bei 110 %, dazwischen 3 min bei 50 %.</p>
     </details>
     <details style="margin-top:8px">
+      <summary>30/30 – Zeiten und Intensität</summary>
+      <label class="f"><span>Sätze<small>Blöcke mit langer Pause dazwischen</small></span><input id="cI30Sets" type="number" inputmode="numeric" min="1" max="10"></label>
+      <label class="f"><span>Wiederholungen<small>je Satz</small></span><input id="cI30Reps" type="number" inputmode="numeric" min="1" max="40"></label>
+      <label class="f"><span>hart<small>Sekunden</small></span><input id="cI30Work" type="number" inputmode="numeric" min="5" max="300"></label>
+      <label class="f"><span>locker<small>Sekunden</small></span><input id="cI30Rest" type="number" inputmode="numeric" min="5" max="300"></label>
+      <label class="f"><span>Satzpause<small>min</small></span><input id="cI30SetRest" type="number" step="0.5" inputmode="decimal" min="0.5" max="20"></label>
+      <label class="f"><span>Einfahren<small>min, 0 = aus</small></span><input id="cI30Warm" type="number" inputmode="numeric" min="0" max="60"></label>
+      <label class="f"><span>Ausfahren<small>min, 0 = aus</small></span><input id="cI30Cool" type="number" inputmode="numeric" min="0" max="60"></label>
+      <label class="f"><span>hart-Ziel<small>% der FTP</small></span><input id="cI30WorkPct" type="number" inputmode="numeric" min="50" max="250"></label>
+      <label class="f"><span>locker-Ziel<small>% der FTP</small></span><input id="cI30RestPct" type="number" inputmode="numeric" min="20" max="100"></label>
+      <p class="note">Billat-Intervalle: die kurze Erholung reicht absichtlich nicht zur vollen
+        Wiederherstellung – so bleibt die Sauerstoffaufnahme über den ganzen Satz oben.</p>
+    </details>
+    <details style="margin-top:8px">
+      <summary>Sprints – Zeiten und Intensität</summary>
+      <label class="f"><span>Wiederholungen<small>Anzahl Sprints</small></span><input id="cMxReps" type="number" inputmode="numeric" min="1" max="20"></label>
+      <label class="f"><span>Sprint<small>Sekunden</small></span><input id="cMxWork" type="number" inputmode="numeric" min="5" max="120"></label>
+      <label class="f"><span>Erholung<small>min</small></span><input id="cMxRest" type="number" step="0.5" inputmode="decimal" min="0.5" max="20"></label>
+      <label class="f"><span>Einfahren<small>min, 0 = aus</small></span><input id="cMxWarm" type="number" inputmode="numeric" min="0" max="60"></label>
+      <label class="f"><span>Ausfahren<small>min, 0 = aus</small></span><input id="cMxCool" type="number" inputmode="numeric" min="0" max="60"></label>
+      <label class="f"><span>Sprint-Ziel<small>% der FTP, 0 = kein Ziel</small></span><input id="cMxWorkPct" type="number" inputmode="numeric" min="0" max="400"></label>
+      <label class="f"><span>Erholungs-Ziel<small>% der FTP</small></span><input id="cMxRestPct" type="number" inputmode="numeric" min="20" max="100"></label>
+      <p class="note">Ohne Zielwert (0 %) zeigt die App während des Sprints die Spitzenleistung
+        statt eines Pfeils – bei maximaler Leistung ist ein Ziel sinnlos.</p>
+    </details>
+    <details style="margin-top:8px">
       <summary>Weitere Quellen &amp; Diagnose</summary>
       <div class="row" style="margin:8px 0">
         <button class="btn small" id="btnDemo">Demo-Daten</button>
@@ -213,8 +244,20 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--dim);ma
     <div class="cell"><span>% FTP</span><b class="num" id="rPct">0</b></div>
   </div>
   <div class="rideBtns">
+    <button id="btnSkip" class="hidden">Block über&shy;springen</button>
+    <button id="btnAddWo" class="hidden">Workout</button>
+  </div>
+  <div class="rideBtns">
     <button id="btnPause">Pause</button>
     <button id="btnStop">Beenden</button>
+  </div>
+  <!-- Auswahl für ein weiteres Workout, ohne die Aufzeichnung zu unterbrechen -->
+  <div id="woPick" class="pick hidden">
+    <b>Workout anhängen</b>
+    <button class="btn" data-wo="vo2">VO₂max 4×4</button>
+    <button class="btn" data-wo="i3030">30/30</button>
+    <button class="btn" data-wo="maxp">Sprints</button>
+    <button class="btn" data-wo="">Abbrechen</button>
   </div>
 </section>
 
@@ -312,35 +355,115 @@ const Core = (() => {
     };
   }
 
-  /* ---------- VO2max-Intervalle (4x4) ----------
-     Norweger-Protokoll: vier harte Blöcke von je vier Minuten, dazwischen aktive Erholung.
-     Der Reiz entsteht durch die Zeit nahe der maximalen Sauerstoffaufnahme – die erreicht
-     man erst gegen Ende eines Blocks, deshalb sind die Pausen kurz genug, dass die
-     Atmung hoch bleibt, aber lang genug für den nächsten Block.
-     Der Plan ist eine reine Liste von Abschnitten; alles Weitere liest nur darin.      */
-  function buildPlan(cfg, ftp){
-    const w = pct => Math.round(ftp * pct / 100);
-    const p = [];
-    if(cfg.vo2Warm > 0) p.push({ kind:"warm", name:"Einfahren", sec: cfg.vo2Warm*60, w: w(cfg.vo2RestPct) });
-    for(let i = 1; i <= cfg.vo2Reps; i++){
-      p.push({ kind:"work", name:`Intervall ${i}/${cfg.vo2Reps}`, sec: Math.round(cfg.vo2Work*60), w: w(cfg.vo2WorkPct) });
-      // Nach dem letzten Block keine Erholung – da folgt das Ausfahren (oder Schluss).
-      if(i < cfg.vo2Reps) p.push({ kind:"rest", name:"Erholung", sec: Math.round(cfg.vo2Rest*60), w: w(cfg.vo2RestPct) });
+  /* ---------- Workouts: Abschnittslisten ----------
+     Jedes Workout ist eine reine Liste von Abschnitten {kind, name, sec, w}. `w` ist das
+     Zielwatt; null bedeutet "kein Ziel" (Sprints – bei maximaler Leistung wäre ein Ziel sinnlos).
+     Der Fortschritt läuft NICHT gegen die Uhr der Fahrt, sondern über einen eigenen Zähler
+     (siehe woTick). Nur so lässt sich ein Abschnitt überspringen und ein zweites Workout
+     mitten in eine laufende Aufzeichnung hängen.                                            */
+
+  // VO2max 4x4, Norweger-Protokoll: der Reiz entsteht durch die Zeit nahe der maximalen
+  // Sauerstoffaufnahme, die erst gegen Ende eines Blocks erreicht wird. Die Pausen sind
+  // kurz genug, dass die Atmung hoch bleibt, aber lang genug für den nächsten Block.
+  function planVo2(c, ftp){
+    const w = pct => Math.round(ftp * pct / 100), p = [];
+    if(c.vo2Warm > 0) p.push({ kind:"warm", name:"Einfahren", sec: c.vo2Warm*60, w: w(c.vo2RestPct) });
+    for(let i = 1; i <= c.vo2Reps; i++){
+      p.push({ kind:"work", name:`Intervall ${i}/${c.vo2Reps}`, short:"Intervall", sec: Math.round(c.vo2Work*60), w: w(c.vo2WorkPct) });
+      if(i < c.vo2Reps) p.push({ kind:"rest", name:"Erholung", short:"Erholung", sec: Math.round(c.vo2Rest*60), w: w(c.vo2RestPct) });
     }
-    if(cfg.vo2Cool > 0) p.push({ kind:"cool", name:"Ausfahren", sec: cfg.vo2Cool*60, w: w(cfg.vo2RestPct) });
-    let t = 0;
-    for(const x of p){ x.t0 = t; t += x.sec; }
-    return { steps: p, total: t };
+    if(c.vo2Cool > 0) p.push({ kind:"cool", name:"Ausfahren", sec: c.vo2Cool*60, w: w(c.vo2RestPct) });
+    return p;
   }
 
-  // Welcher Abschnitt läuft nach `sec` Sekunden? Nach dem Ende gibt es keinen mehr (null).
-  function planAt(plan, sec){
-    const st = plan.steps;
-    for(let i = 0; i < st.length; i++){
-      if(sec < st[i].t0 + st[i].sec)
-        return { i, step: st[i], left: st[i].t0 + st[i].sec - sec, next: st[i+1] || null };
+  // 30/30 (Billat): kurze harte Reize mit ebenso kurzer Erholung. Die Erholung reicht nicht
+  // zur vollen Wiederherstellung – genau das hält die Sauerstoffaufnahme über den ganzen
+  // Satz oben. Mehrere Sätze mit längerer Pause dazwischen.
+  function plan3030(c, ftp){
+    const w = pct => Math.round(ftp * pct / 100), p = [];
+    if(c.i30Warm > 0) p.push({ kind:"warm", name:"Einfahren", sec: c.i30Warm*60, w: w(c.i30RestPct) });
+    for(let s = 1; s <= c.i30Sets; s++){
+      for(let i = 1; i <= c.i30Reps; i++){
+        const nm = c.i30Sets > 1 ? `Satz ${s}/${c.i30Sets} · ${i}/${c.i30Reps}` : `${i}/${c.i30Reps}`;
+        p.push({ kind:"work", name: nm, short:"hart", sec: c.i30Work, w: w(c.i30WorkPct) });
+        // Nach der letzten Wiederholung eines Satzes folgt die Satzpause, nicht die kurze Erholung.
+        if(i < c.i30Reps) p.push({ kind:"rest", name:"locker", short:"locker", sec: c.i30Rest, w: w(c.i30RestPct) });
+      }
+      if(s < c.i30Sets) p.push({ kind:"rest", name:`Satzpause ${s}/${c.i30Sets-1}`, sec: Math.round(c.i30SetRest*60), w: w(c.i30RestPct) });
     }
-    return null;
+    if(c.i30Cool > 0) p.push({ kind:"cool", name:"Ausfahren", sec: c.i30Cool*60, w: w(c.i30RestPct) });
+    return p;
+  }
+
+  // Maximalkraft/Sprints: all-out, deshalb ohne Zielwatt (w = null). Die lange Pause ist
+  // nötig, weil die Kreatinphosphat-Speicher sonst nicht wieder gefüllt sind.
+  function planMax(c, ftp){
+    const w = pct => Math.round(ftp * pct / 100), p = [];
+    if(c.mxWarm > 0) p.push({ kind:"warm", name:"Einfahren", sec: c.mxWarm*60, w: w(c.mxRestPct) });
+    for(let i = 1; i <= c.mxReps; i++){
+      p.push({ kind:"sprint", name:`Sprint ${i}/${c.mxReps}`, short:"Sprint", sec: c.mxWork,
+               w: c.mxWorkPct > 0 ? w(c.mxWorkPct) : null });
+      if(i < c.mxReps) p.push({ kind:"rest", name:"Erholung", short:"Erholung", sec: Math.round(c.mxRest*60), w: w(c.mxRestPct) });
+    }
+    if(c.mxCool > 0) p.push({ kind:"cool", name:"Ausfahren", sec: c.mxCool*60, w: w(c.mxRestPct) });
+    return p;
+  }
+
+  const WORKOUTS = { vo2: planVo2, i3030: plan3030, maxp: planMax };
+
+  function buildPlan(kind, c, ftp){
+    const f = WORKOUTS[kind];
+    if(!f) return null;
+    const steps = f(c, ftp);
+    return { kind, steps, total: steps.reduce((a, x) => a + x.sec, 0) };
+  }
+
+  /* ---------- Vorschau: Abschnitte zu Zeilen zusammenfassen ----------
+     Ein 30/30 mit drei Sätzen hat über sechzig Abschnitte – ausgeschrieben wäre die
+     Vorschau nicht zu überblicken. Gleiche Abschnitte und sich wiederholende Paare
+     (hart/locker) werden deshalb zu einer Zeile mit Zähler zusammengezogen.          */
+  function planRows(steps){
+    const sig = x => x.kind + "|" + x.sec + "|" + x.w;
+    const out = [];
+    let i = 0;
+    while(i < steps.length){
+      // Wiederholt sich ab hier ein Paar (z. B. hart/locker) mindestens zweimal?
+      const isPair = i + 3 < steps.length
+        && sig(steps[i]) === sig(steps[i+2]) && sig(steps[i+1]) === sig(steps[i+3]);
+      if(isPair){
+        let c = 0;
+        while(i + 2*c + 1 < steps.length
+              && sig(steps[i + 2*c]) === sig(steps[i])
+              && sig(steps[i + 2*c + 1]) === sig(steps[i+1])) c++;
+        out.push({ pair: true, a: steps[i], b: steps[i+1], cnt: c });
+        i += 2*c;
+      }else{
+        let c = 1;
+        while(i + c < steps.length && sig(steps[i+c]) === sig(steps[i])) c++;
+        out.push({ pair: false, a: steps[i], cnt: c });
+        i += c;
+      }
+    }
+    return out;
+  }
+
+  /* ---------- Fortschritt im Workout ----------
+     Zustand: {i, t} – Abschnitt und verstrichene Sekunden darin. woTick gibt den neuen
+     Zustand zurück, ohne den alten zu verändern; `done` heißt, dass der letzte Abschnitt
+     vorbei ist. `skip` springt sofort zum nächsten Abschnitt.                          */
+  function woTick(plan, st, skip){
+    if(!plan || !st || st.done) return st;
+    const t = skip ? plan.steps[st.i].sec : st.t + 1;
+    if(t < plan.steps[st.i].sec) return { i: st.i, t, done: false };
+    const i = st.i + 1;
+    return i < plan.steps.length ? { i, t: 0, done: false } : { i: st.i, t: plan.steps[st.i].sec, done: true };
+  }
+
+  // Was zeigt die Anzeige gerade? Restzeit des Abschnitts und der nächste Abschnitt.
+  function woAt(plan, st){
+    if(!plan || !st || st.done) return null;
+    const step = plan.steps[st.i];
+    return { i: st.i, step, left: step.sec - st.t, next: plan.steps[st.i+1] || null };
   }
 
   /* ---------- Physik: virtuelle Geschwindigkeit in der Ebene ---------- */
@@ -440,7 +563,7 @@ const Core = (() => {
   }
 
   return { makeCrankCalc, parseFtms, parseCps, parseHrm, makeHrCalc,
-           buildPlan, planAt, virtualSpeed, ZONES, zoneOf, np, bestAvg, summarize, fitEncode, crc16, FIT_EPOCH };
+           buildPlan, planRows, woTick, woAt, virtualSpeed, ZONES, zoneOf, np, bestAvg, summarize, fitEncode, crc16, FIT_EPOCH };
 })();
 if(typeof module !== "undefined") module.exports = Core;
 </script>
@@ -454,13 +577,23 @@ const C = Core;
 /* ---------- Einstellungen ---------- */
 const DEF = { ftp: 250, a: 1, b: 0, mass: 85, rampStart: 100, rampStep: 20,
   // VO2max 4x4, Norweger-Protokoll. Zeiten in Minuten, Leistungen in % der FTP.
-  vo2Reps: 4, vo2Work: 4, vo2Rest: 3, vo2Warm: 10, vo2Cool: 5, vo2WorkPct: 110, vo2RestPct: 50 };
+  vo2Reps: 4, vo2Work: 4, vo2Rest: 3, vo2Warm: 10, vo2Cool: 5, vo2WorkPct: 110, vo2RestPct: 50,
+  // 30/30 (Billat): 3 Sätze à 10 Wiederholungen, 5 min Satzpause. Dauern in Sekunden.
+  i30Sets: 3, i30Reps: 10, i30Work: 30, i30Rest: 30, i30SetRest: 5, i30Warm: 10, i30Cool: 5,
+  i30WorkPct: 130, i30RestPct: 50,
+  // Sprints: all-out, deshalb Ziel 0 % = kein Zielwert. Dauer in Sekunden, Pause in Minuten.
+  mxReps: 8, mxWork: 15, mxRest: 3, mxWarm: 10, mxCool: 5, mxWorkPct: 0, mxRestPct: 50 };
 function lsGet(k, d){ try{ const v = localStorage.getItem("ic5_"+k); return v === null ? d : JSON.parse(v); }catch(e){ return d; } }
 function lsSet(k, v){ try{ localStorage.setItem("ic5_"+k, JSON.stringify(v)); }catch(e){} }
 const cfg = Object.assign({}, DEF, lsGet("cfg", {}));
 const inputs = { ftp:"cFtp", mass:"cMass", rampStart:"cRampStart", rampStep:"cRampStep",
   vo2Reps:"cVo2Reps", vo2Work:"cVo2Work", vo2Rest:"cVo2Rest", vo2Warm:"cVo2Warm",
-  vo2Cool:"cVo2Cool", vo2WorkPct:"cVo2WorkPct", vo2RestPct:"cVo2RestPct" };
+  vo2Cool:"cVo2Cool", vo2WorkPct:"cVo2WorkPct", vo2RestPct:"cVo2RestPct",
+  i30Sets:"cI30Sets", i30Reps:"cI30Reps", i30Work:"cI30Work", i30Rest:"cI30Rest",
+  i30SetRest:"cI30SetRest", i30Warm:"cI30Warm", i30Cool:"cI30Cool",
+  i30WorkPct:"cI30WorkPct", i30RestPct:"cI30RestPct",
+  mxReps:"cMxReps", mxWork:"cMxWork", mxRest:"cMxRest", mxWarm:"cMxWarm", mxCool:"cMxCool",
+  mxWorkPct:"cMxWorkPct", mxRestPct:"cMxRestPct" };
 for(const [k,id] of Object.entries(inputs)){
   $(id).value = cfg[k];
   $(id).addEventListener("change", () => { const v = parseFloat($(id).value); if(!isNaN(v)){ cfg[k] = v; lsSet("cfg", cfg); } });
@@ -680,46 +813,83 @@ function demo(){
 /* =====================================================================
    Aufnahme
    ===================================================================== */
-let mode = "free", rec = null, tick = null, wakeLock = null, plan = null;
+let mode = "free", rec = null, tick = null, wakeLock = null, plan = null, woSt = null, woPeak = 0;
 document.querySelectorAll("#modeSel button").forEach(b => b.onclick = () => {
   mode = b.dataset.mode;
   document.querySelectorAll("#modeSel button").forEach(x => x.classList.toggle("sel", x === b));
-  $("vo2Box").classList.toggle("hidden", mode !== "vo2");
+  const isWo = WO_MODES.includes(mode);
+  $("vo2Box").classList.toggle("hidden", !isWo);
   // Beim Öffnen mit der gespeicherten FTP vorbelegen; eine zuvor eingetippte
   // abweichende Zahl bleibt stehen, solange die Seite offen ist.
-  if(mode === "vo2"){ if(!$("cVo2Ftp").value) $("cVo2Ftp").value = cfg.ftp; renderVo2(); }
+  if(isWo){ if(!$("cVo2Ftp").value) $("cVo2Ftp").value = cfg.ftp; renderWoPlan(); }
 });
 
-/* ---------- VO2max 4x4: Vorschau vor dem Start ----------
+/* ---------- Workouts: Vorschau vor dem Start ----------
    Die FTP im Feld gilt nur für dieses Workout. Leer oder unsinnig -> gespeicherte FTP. */
-function vo2Ftp(){
+const WO_MODES = ["vo2", "i3030", "maxp"];
+function woFtp(){
   const v = parseFloat($("cVo2Ftp").value);
   return (v >= 50 && v <= 600) ? Math.round(v) : cfg.ftp;
 }
-function renderVo2(){
-  const ftp = vo2Ftp(), plan = C.buildPlan(cfg, ftp);
+const wTxt = w => w === null ? "max" : w + " W";
+function renderWoPlan(){
+  const ftp = woFtp(), plan = C.buildPlan(mode, cfg, ftp);
+  if(!plan) return;
   $("vo2Saved").textContent = `W · gespeichert: ${cfg.ftp} W`;
-  $("vo2Plan").innerHTML = plan.steps.map(x =>
-    `<div class="prow ${x.kind}"><span class="pn">${x.name}</span>`
-    + `<span class="pt">${fmt(x.sec)}</span><span class="pw">${x.w} W</span></div>`).join("")
+  $("vo2Plan").innerHTML = C.planRows(plan.steps).map(r => {
+    const pre = r.cnt > 1 ? `${r.cnt}× ` : "";
+    return r.pair
+      ? `<div class="prow ${r.a.kind}"><span class="pn">${pre}${r.a.short || r.a.name} / ${r.b.short || r.b.name}</span>`
+        + `<span class="pt">${fmt(r.a.sec)} / ${fmt(r.b.sec)}</span>`
+        + `<span class="pw">${wTxt(r.a.w)}</span></div>`
+      : `<div class="prow ${r.a.kind}"><span class="pn">${pre}${r.a.name}</span>`
+        + `<span class="pt">${fmt(r.a.sec)}</span><span class="pw">${wTxt(r.a.w)}</span></div>`;
+  }).join("")
     + `<div class="prow tot"><span class="pn">Gesamt</span><span class="pt">${fmt(plan.total)}</span><span class="pw"></span></div>`;
 }
-$("cVo2Ftp").addEventListener("input", renderVo2);
+$("cVo2Ftp").addEventListener("input", renderWoPlan);
 // Ändert sich eine der Zeiten in den Einstellungen, muss die Vorschau mitgehen.
-for(const id of ["cVo2Reps","cVo2Work","cVo2Rest","cVo2Warm","cVo2Cool","cVo2WorkPct","cVo2RestPct","cFtp"])
-  $(id).addEventListener("change", () => { if(mode === "vo2") renderVo2(); });
+for(const id of ["cVo2Reps","cVo2Work","cVo2Rest","cVo2Warm","cVo2Cool","cVo2WorkPct","cVo2RestPct",
+                 "cI30Sets","cI30Reps","cI30Work","cI30Rest","cI30SetRest","cI30Warm","cI30Cool",
+                 "cI30WorkPct","cI30RestPct",
+                 "cMxReps","cMxWork","cMxRest","cMxWarm","cMxCool","cMxWorkPct","cMxRestPct","cFtp"])
+  $(id).addEventListener("change", () => { if(WO_MODES.includes(mode)) renderWoPlan(); });
 
 function startRide(resume){
   // Rad und seine Korrektur mit aufzeichnen – sonst ist später nicht nachvollziehbar, womit gerechnet wurde.
   rec = resume || { start: Date.now(), mode, S: [], paused: false, rampT0: null, a: cfg.a, b: cfg.b,
-                    ftp: mode === "vo2" ? vo2Ftp() : cfg.ftp };
+                    ftp: WO_MODES.includes(mode) ? woFtp() : cfg.ftp };
   mode = rec.mode;
-  // Plan aus den Werten der Fahrt bauen, nicht aus den aktuellen Einstellungen – sonst
+  // Plan aus den Werten vom Start bauen, nicht laufend aus den Einstellungen – sonst
   // würde eine Änderung mitten in der Fahrt die Abschnitte verschieben.
-  plan = rec.mode === "vo2" ? C.buildPlan(cfg, rec.ftp || cfg.ftp) : null;
+  startWorkout(rec.mode, true);
   show("ride"); keepAwake();
   if(!tick) tick = setInterval(step, 1000);
   render();
+}
+
+/* ---------- Workout starten, überspringen, anhängen ----------
+   `plan` und `woSt` leben außerhalb von `rec`: eine wiederhergestellte Fahrt läuft nach
+   einem Neuladen frei weiter, statt mitten im Workout an falscher Stelle aufzusetzen. */
+function startWorkout(kind, atStart){
+  plan = C.buildPlan(kind, cfg, (rec && rec.ftp) || cfg.ftp);
+  woSt = plan ? { i: 0, t: 0, done: false } : null;
+  woPeak = 0;
+  if(!atStart && plan) log(`Workout angehängt: ${plan.steps.length} Abschnitte, ${fmt(plan.total)}`);
+  renderWoBtns();
+}
+
+// Nach dem letzten Abschnitt endet nur das Workout, nicht die Aufzeichnung: es läuft frei
+// weiter, damit Ausfahren und ein zweites Workout in derselben Datei landen.
+function woFinish(){
+  plan = null; woSt = null; woPeak = 0;
+  renderWoBtns();
+  log("Workout fertig – Aufzeichnung läuft weiter");
+}
+
+function renderWoBtns(){
+  $("btnSkip").classList.toggle("hidden", !plan);
+  $("btnAddWo").classList.toggle("hidden", !!plan);
 }
 
 function step(){
@@ -736,9 +906,27 @@ function step(){
       const prev = rec.S.length ? rec.S[rec.S.length-1].dist : 0;
       rec.S.push({ t: Date.now(), p, raw: Math.round(raw), cad: Math.round(cad), hr: live.hrNow, spd, dist: prev + spd });
       if(rec.S.length % 10 === 0) persist();
+      // Das Workout läuft im Takt der Aufzeichnung: in der Pause steht auch der Plan.
+      if(plan && woSt){
+        const cur = plan.steps[woSt.i];
+        if(cur.kind === "sprint" && p > woPeak) woPeak = p;
+        const nx = C.woTick(plan, woSt, false);
+        if(nx.i !== woSt.i) woPeak = 0;                 // neuer Abschnitt -> Spitzenwert zurücksetzen
+        woSt = nx;
+        if(woSt.done) woFinish();
+      }
     }
   }
   render();
+}
+
+function skipStep(){
+  if(!plan || !woSt) return;
+  const name = plan.steps[woSt.i].name;
+  woSt = C.woTick(plan, woSt, true);
+  woPeak = 0;
+  log(`übersprungen: ${name}`);
+  if(woSt.done) woFinish(); else render();
 }
 
 function rampTarget(){
@@ -783,19 +971,23 @@ function render(){
       const diff = p3 - rt.w, arrow = diff < -15 ? "▲ mehr" : diff > 15 ? "▼ weniger" : "✓";
       tEl.innerHTML = `Ziel <b class="num">${rt.w} W</b> <span class="arrow">${arrow}</span><small>Stufe ${rt.stage} · nächste in ${rt.left} s</small>`;
     }
-  }else if(rec.mode === "vo2" && plan){
+  }else if(plan && woSt){
+    const at = C.woAt(plan, woSt);
     tEl.classList.remove("hidden");
-    const at = C.planAt(plan, n);
-    if(!at){
-      tEl.innerHTML = `Workout fertig <b class="num">✓</b><small>${fmt(plan.total)} · jetzt beenden</small>`;
-      tEl.classList.remove("work");
+    // Im harten Block bekommt die Zielzeile einen Rahmen, damit ohne Brille erkennbar
+    // bleibt, ob gerade gedrückt oder erholt wird.
+    tEl.classList.toggle("work", at.step.kind === "work" || at.step.kind === "sprint");
+    const nx = at.next
+      ? ` · dann ${at.next.name} ${at.next.w === null ? "max" : at.next.w + " W"}`
+      : " · letzter Abschnitt";
+    if(at.step.w === null){
+      // Sprint ohne Zielwert: statt eines Pfeils die Spitzenleistung dieses Sprints.
+      tEl.innerHTML = `${at.step.name} <b class="num">ALLES</b>`
+        + `<small>noch ${fmt(at.left)} · Spitze ${woPeak} W${nx}</small>`;
     }else{
       const diff = p3 - at.step.w, arrow = diff < -15 ? "▲ mehr" : diff > 15 ? "▼ weniger" : "✓";
-      // Im harten Block bekommt die Zielzeile einen Rahmen, damit ohne Brille erkennbar
-      // bleibt, ob gerade gedrückt oder erholt wird.
-      tEl.classList.toggle("work", at.step.kind === "work");
       tEl.innerHTML = `${at.step.name} <b class="num">${at.step.w} W</b> <span class="arrow">${arrow}</span>`
-        + `<small>noch ${fmt(at.left)}` + (at.next ? ` · dann ${at.next.name} ${at.next.w} W` : " · letzter Abschnitt") + `</small>`;
+        + `<small>noch ${fmt(at.left)}${nx}</small>`;
     }
   }else if(rec.mode === "ftp20"){
     // Kein Zielwert: beim 20-min-Test fährt man, was man halten kann. Angezeigt wird nur,
@@ -808,7 +1000,7 @@ function render(){
     }else{
       tEl.innerHTML = `20 min voll <b class="num">${Math.round(C.bestAvg(p, 1200))} W</b><small>beste 20 min · jetzt beenden</small>`;
     }
-  }else tEl.classList.add("hidden");
+  }else{ tEl.classList.add("hidden"); tEl.classList.remove("work"); }
 }
 const fmt = s => { const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60; return (h ? h+":"+String(m).padStart(2,"0") : m)+":"+String(x).padStart(2,"0"); };
 
@@ -852,10 +1044,17 @@ function showSummary(){
     sug = { ftp: Math.round(0.75 * s.best1), txt: `Rampentest – beste 1 min ${Math.round(s.best1)} W`, formel: "0,75 × 1-min" };
   else if(rec.mode === "ftp20" && s.best20 > 0)
     sug = { ftp: Math.round(0.95 * s.best20), txt: `20-min-Test – beste 20 min ${Math.round(s.best20)} W`, formel: "0,95 × 20-min" };
-  if(rec.mode === "vo2"){
+  if(WO_MODES.includes(rec.mode)){
     // Kein FTP-Vorschlag aus einem Workout – nur zeigen, womit gerechnet wurde.
     const abw = rec.ftp && rec.ftp !== cfg.ftp;
-    rr.innerHTML = `VO₂max 4×4 · ${Math.round(s.best1)} W beste 1 min<b class="num">${Math.round(s.np)} W NP</b>`
+    const titel = { vo2: "VO₂max 4×4", i3030: "30/30", maxp: "Sprints" }[rec.mode];
+    // Bei Sprints zählt die Spitzenleistung, sonst die normalisierte Leistung.
+    // Bei Sprints sagt eine 1-Minuten-Bestleistung nichts – dort zählt die Spitze.
+    const kopf = rec.mode === "maxp" ? titel : `${titel} · ${Math.round(s.best1)} W beste 1 min`;
+    const haupt = rec.mode === "maxp"
+      ? `<b class="num">${Math.round(s.max)} W Spitze</b>`
+      : `<b class="num">${Math.round(s.np)} W NP</b>`;
+    rr.innerHTML = `${kopf}${haupt}`
       + `<small>gerechnet mit FTP ${rec.ftp || cfg.ftp} W`
       + (abw ? ` (abweichend, gespeichert: ${cfg.ftp} W)` : "") + `</small>`;
     rr.classList.remove("hidden");
@@ -903,6 +1102,12 @@ $("btnLogCopy").onclick = copyReport;
 $("btnStart").onclick = () => startRide(null);
 $("btnPause").onclick = () => { rec.paused = !rec.paused; $("btnPause").textContent = rec.paused ? "Weiter" : "Pause"; render(); };
 $("btnStop").onclick = () => { if(confirm("Fahrt beenden?")) stopRide(); };
+$("btnSkip").onclick = skipStep;
+$("btnAddWo").onclick = () => $("woPick").classList.toggle("hidden");
+document.querySelectorAll("#woPick button").forEach(b => b.onclick = () => {
+  $("woPick").classList.add("hidden");
+  if(b.dataset.wo) startWorkout(b.dataset.wo, false);
+});
 $("btnFit").onclick = saveFit;
 // Import-Seiten in neuem Tab: die App bleibt stehen, falls die Datei noch gebraucht wird.
 $("btnGarmin").onclick = () => window.open("https://connect.garmin.com/modern/import-data", "_blank", "noopener");
