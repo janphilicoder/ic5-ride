@@ -59,6 +59,35 @@ ok(hc(140, 21000) === null, "eingefrorener Wert -> verworfen (Gurt abgelegt)");
 ok(hc(141, 22000) === 141, "neuer Wert -> wieder gültig");
 ok(hc(0, 23000) === null, "HF 0 ist kein Puls");
 
+// ---- VO2max 4x4: Plan ----
+const VC = { vo2Reps:4, vo2Work:4, vo2Rest:3, vo2Warm:10, vo2Cool:5, vo2WorkPct:110, vo2RestPct:50 };
+const pl = C.buildPlan(VC, 250);
+ok(pl.steps.length === 9, "4x4: Einfahren + 4 Bloecke + 3 Pausen + Ausfahren = 9 Abschnitte");
+ok(pl.total === (10 + 4*4 + 3*3 + 5) * 60, `Gesamtdauer ${pl.total/60} min`);
+ok(pl.steps[1].w === 275 && pl.steps[2].w === 125, "110 % und 50 % von FTP 250");
+ok(pl.steps[pl.steps.length-2].kind === "work" && pl.steps[pl.steps.length-1].kind === "cool",
+   "nach dem letzten Block keine Erholung, sondern Ausfahren");
+ok(pl.steps[0].t0 === 0 && pl.steps[1].t0 === 600 && pl.steps[2].t0 === 840, "Startzeiten summieren sich");
+
+// Abweichende FTP wirkt auf alle Ziele, nicht auf die Zeiten.
+const pl2 = C.buildPlan(VC, 300);
+ok(pl2.steps[1].w === 330 && pl2.total === pl.total, "andere FTP -> andere Watt, gleiche Dauer");
+
+// Ohne Ein- und Ausfahren bleiben nur Bloecke und Pausen.
+const pl3 = C.buildPlan({...VC, vo2Warm:0, vo2Cool:0}, 250);
+ok(pl3.steps.length === 7 && pl3.total === (4*4 + 3*3)*60, "ohne Ein-/Ausfahren 7 Abschnitte, 25 min");
+
+// planAt: Grenzen zwischen den Abschnitten
+ok(C.planAt(pl, 0).step.kind === "warm", "Sekunde 0 -> Einfahren");
+ok(C.planAt(pl, 599).step.kind === "warm" && C.planAt(pl, 600).step.kind === "work",
+   "Wechsel genau bei 600 s, nicht davor");
+const a1 = C.planAt(pl, 600);
+ok(a1.left === 240 && a1.next.kind === "rest", "Restzeit und naechster Abschnitt");
+ok(C.planAt(pl, 839).left === 1, "letzte Sekunde eines Abschnitts");
+ok(C.planAt(pl, pl.total - 1).step.kind === "cool", "letzte Sekunde -> Ausfahren");
+ok(C.planAt(pl, pl.total) === null && C.planAt(pl, pl.total + 99) === null, "nach dem Ende kein Abschnitt");
+ok(C.planAt(pl, pl.total - 1).next === null, "letzter Abschnitt hat keinen naechsten");
+
 const v = C.virtualSpeed(200, 109); ok(v*3.6 > 32 && v*3.6 < 35, `200 W -> ${(v*3.6).toFixed(1)} km/h`);
 ok(C.zoneOf(140,250) === 1 && C.zoneOf(260,250) === 3 && C.zoneOf(400,250) === 6, "Zonen");
 ok(Math.round(C.np(Array(600).fill(200))) === 200, "NP konstant");

@@ -67,6 +67,15 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--dim);ma
 .target{font-size:clamp(20px,6vw,44px);font-weight:800;text-align:center;padding:6px;border-radius:14px;background:rgba(0,0,0,.18);margin:0 6px 6px}
 .target .arrow{font-size:1.1em}
 .target small{display:block;font-size:.5em;opacity:.8}
+.target.work{box-shadow:inset 0 0 0 3px var(--acc)}
+.planList{margin-top:10px;font-size:14px}
+.prow{display:flex;gap:10px;align-items:baseline;border-top:1px solid var(--line);padding:6px 0}
+.prow:first-child{border-top:0}
+.prow .pn{flex:1}
+.prow .pt{color:var(--dim);font-variant-numeric:tabular-nums}
+.prow .pw{width:62px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.prow.work{color:var(--acc)} .prow.work .pw{color:var(--acc)}
+.prow.tot{border-top:2px solid var(--line);font-weight:700}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .cell{background:rgba(0,0,0,.16);border-radius:14px;padding:6px 4px;text-align:center;min-width:0}
 .cell span{display:block;font-size:clamp(11px,3vw,16px);font-weight:800;text-transform:uppercase;letter-spacing:.06em;opacity:.7}
@@ -149,6 +158,15 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--dim);ma
     <button data-mode="free" class="sel">Freie Fahrt</button>
     <button data-mode="ramp">Rampentest</button>
     <button data-mode="ftp20">20-min-Test</button>
+    <button data-mode="vo2">VO₂max 4×4</button>
+  </div>
+
+  <!-- Nur im VO2max-Modus: abweichende FTP für dieses eine Workout. Die gespeicherte
+       FTP in den Einstellungen bleibt davon unberührt. -->
+  <div class="card hidden" id="vo2Box" style="margin-top:0">
+    <label class="f"><span>FTP für dieses Workout<small id="vo2Saved">W</small></span>
+      <input id="cVo2Ftp" type="number" inputmode="numeric" min="50" max="600"></label>
+    <div id="vo2Plan" class="planList"></div>
   </div>
 
   <button class="btn primary big" id="btnStart">Start</button>
@@ -159,6 +177,17 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--dim);ma
     <label class="f"><span>Fahrer + Rad<small>kg, für virtuelle Distanz</small></span><input id="cMass" type="number" inputmode="numeric"></label>
     <label class="f"><span>Rampe Start<small>W (korrigiert)</small></span><input id="cRampStart" type="number" inputmode="numeric"></label>
     <label class="f"><span>Rampe Schritt<small>W pro Minute</small></span><input id="cRampStep" type="number" inputmode="numeric"></label>
+    <details style="margin-top:8px">
+      <summary>VO₂max 4×4 – Zeiten und Intensität</summary>
+      <label class="f"><span>Wiederholungen<small>Anzahl harter Blöcke</small></span><input id="cVo2Reps" type="number" inputmode="numeric" min="1" max="12"></label>
+      <label class="f"><span>Intervall<small>min je Block</small></span><input id="cVo2Work" type="number" step="0.5" inputmode="decimal" min="0.5" max="30"></label>
+      <label class="f"><span>Erholung<small>min zwischen den Blöcken</small></span><input id="cVo2Rest" type="number" step="0.5" inputmode="decimal" min="0.5" max="30"></label>
+      <label class="f"><span>Einfahren<small>min, 0 = aus</small></span><input id="cVo2Warm" type="number" inputmode="numeric" min="0" max="60"></label>
+      <label class="f"><span>Ausfahren<small>min, 0 = aus</small></span><input id="cVo2Cool" type="number" inputmode="numeric" min="0" max="60"></label>
+      <label class="f"><span>Intervall-Ziel<small>% der FTP</small></span><input id="cVo2WorkPct" type="number" inputmode="numeric" min="50" max="200"></label>
+      <label class="f"><span>Erholungs-Ziel<small>% der FTP</small></span><input id="cVo2RestPct" type="number" inputmode="numeric" min="20" max="100"></label>
+      <p class="note">Norweger-Standard: 4 × 4 min bei 110 %, dazwischen 3 min bei 50 %.</p>
+    </details>
     <details style="margin-top:8px">
       <summary>Weitere Quellen &amp; Diagnose</summary>
       <div class="row" style="margin:8px 0">
@@ -283,6 +312,37 @@ const Core = (() => {
     };
   }
 
+  /* ---------- VO2max-Intervalle (4x4) ----------
+     Norweger-Protokoll: vier harte Blöcke von je vier Minuten, dazwischen aktive Erholung.
+     Der Reiz entsteht durch die Zeit nahe der maximalen Sauerstoffaufnahme – die erreicht
+     man erst gegen Ende eines Blocks, deshalb sind die Pausen kurz genug, dass die
+     Atmung hoch bleibt, aber lang genug für den nächsten Block.
+     Der Plan ist eine reine Liste von Abschnitten; alles Weitere liest nur darin.      */
+  function buildPlan(cfg, ftp){
+    const w = pct => Math.round(ftp * pct / 100);
+    const p = [];
+    if(cfg.vo2Warm > 0) p.push({ kind:"warm", name:"Einfahren", sec: cfg.vo2Warm*60, w: w(cfg.vo2RestPct) });
+    for(let i = 1; i <= cfg.vo2Reps; i++){
+      p.push({ kind:"work", name:`Intervall ${i}/${cfg.vo2Reps}`, sec: Math.round(cfg.vo2Work*60), w: w(cfg.vo2WorkPct) });
+      // Nach dem letzten Block keine Erholung – da folgt das Ausfahren (oder Schluss).
+      if(i < cfg.vo2Reps) p.push({ kind:"rest", name:"Erholung", sec: Math.round(cfg.vo2Rest*60), w: w(cfg.vo2RestPct) });
+    }
+    if(cfg.vo2Cool > 0) p.push({ kind:"cool", name:"Ausfahren", sec: cfg.vo2Cool*60, w: w(cfg.vo2RestPct) });
+    let t = 0;
+    for(const x of p){ x.t0 = t; t += x.sec; }
+    return { steps: p, total: t };
+  }
+
+  // Welcher Abschnitt läuft nach `sec` Sekunden? Nach dem Ende gibt es keinen mehr (null).
+  function planAt(plan, sec){
+    const st = plan.steps;
+    for(let i = 0; i < st.length; i++){
+      if(sec < st[i].t0 + st[i].sec)
+        return { i, step: st[i], left: st[i].t0 + st[i].sec - sec, next: st[i+1] || null };
+    }
+    return null;
+  }
+
   /* ---------- Physik: virtuelle Geschwindigkeit in der Ebene ---------- */
   // P = v·(½·ρ·cwA·v² + cr·m·g)  -> v per Bisektion (f ist streng monoton)
   function virtualSpeed(P, mass, cda=0.32, crr=0.004, rho=1.2, g=9.81){
@@ -380,7 +440,7 @@ const Core = (() => {
   }
 
   return { makeCrankCalc, parseFtms, parseCps, parseHrm, makeHrCalc,
-           virtualSpeed, ZONES, zoneOf, np, bestAvg, summarize, fitEncode, crc16, FIT_EPOCH };
+           buildPlan, planAt, virtualSpeed, ZONES, zoneOf, np, bestAvg, summarize, fitEncode, crc16, FIT_EPOCH };
 })();
 if(typeof module !== "undefined") module.exports = Core;
 </script>
@@ -392,11 +452,15 @@ const $ = id => document.getElementById(id);
 const C = Core;
 
 /* ---------- Einstellungen ---------- */
-const DEF = { ftp: 250, a: 1, b: 0, mass: 85, rampStart: 100, rampStep: 20 };
+const DEF = { ftp: 250, a: 1, b: 0, mass: 85, rampStart: 100, rampStep: 20,
+  // VO2max 4x4, Norweger-Protokoll. Zeiten in Minuten, Leistungen in % der FTP.
+  vo2Reps: 4, vo2Work: 4, vo2Rest: 3, vo2Warm: 10, vo2Cool: 5, vo2WorkPct: 110, vo2RestPct: 50 };
 function lsGet(k, d){ try{ const v = localStorage.getItem("ic5_"+k); return v === null ? d : JSON.parse(v); }catch(e){ return d; } }
 function lsSet(k, v){ try{ localStorage.setItem("ic5_"+k, JSON.stringify(v)); }catch(e){} }
 const cfg = Object.assign({}, DEF, lsGet("cfg", {}));
-const inputs = { ftp:"cFtp", mass:"cMass", rampStart:"cRampStart", rampStep:"cRampStep" };
+const inputs = { ftp:"cFtp", mass:"cMass", rampStart:"cRampStart", rampStep:"cRampStep",
+  vo2Reps:"cVo2Reps", vo2Work:"cVo2Work", vo2Rest:"cVo2Rest", vo2Warm:"cVo2Warm",
+  vo2Cool:"cVo2Cool", vo2WorkPct:"cVo2WorkPct", vo2RestPct:"cVo2RestPct" };
 for(const [k,id] of Object.entries(inputs)){
   $(id).value = cfg[k];
   $(id).addEventListener("change", () => { const v = parseFloat($(id).value); if(!isNaN(v)){ cfg[k] = v; lsSet("cfg", cfg); } });
@@ -616,15 +680,43 @@ function demo(){
 /* =====================================================================
    Aufnahme
    ===================================================================== */
-let mode = "free", rec = null, tick = null, wakeLock = null;
+let mode = "free", rec = null, tick = null, wakeLock = null, plan = null;
 document.querySelectorAll("#modeSel button").forEach(b => b.onclick = () => {
-  mode = b.dataset.mode; document.querySelectorAll("#modeSel button").forEach(x => x.classList.toggle("sel", x === b));
+  mode = b.dataset.mode;
+  document.querySelectorAll("#modeSel button").forEach(x => x.classList.toggle("sel", x === b));
+  $("vo2Box").classList.toggle("hidden", mode !== "vo2");
+  // Beim Öffnen mit der gespeicherten FTP vorbelegen; eine zuvor eingetippte
+  // abweichende Zahl bleibt stehen, solange die Seite offen ist.
+  if(mode === "vo2"){ if(!$("cVo2Ftp").value) $("cVo2Ftp").value = cfg.ftp; renderVo2(); }
 });
+
+/* ---------- VO2max 4x4: Vorschau vor dem Start ----------
+   Die FTP im Feld gilt nur für dieses Workout. Leer oder unsinnig -> gespeicherte FTP. */
+function vo2Ftp(){
+  const v = parseFloat($("cVo2Ftp").value);
+  return (v >= 50 && v <= 600) ? Math.round(v) : cfg.ftp;
+}
+function renderVo2(){
+  const ftp = vo2Ftp(), plan = C.buildPlan(cfg, ftp);
+  $("vo2Saved").textContent = `W · gespeichert: ${cfg.ftp} W`;
+  $("vo2Plan").innerHTML = plan.steps.map(x =>
+    `<div class="prow ${x.kind}"><span class="pn">${x.name}</span>`
+    + `<span class="pt">${fmt(x.sec)}</span><span class="pw">${x.w} W</span></div>`).join("")
+    + `<div class="prow tot"><span class="pn">Gesamt</span><span class="pt">${fmt(plan.total)}</span><span class="pw"></span></div>`;
+}
+$("cVo2Ftp").addEventListener("input", renderVo2);
+// Ändert sich eine der Zeiten in den Einstellungen, muss die Vorschau mitgehen.
+for(const id of ["cVo2Reps","cVo2Work","cVo2Rest","cVo2Warm","cVo2Cool","cVo2WorkPct","cVo2RestPct","cFtp"])
+  $(id).addEventListener("change", () => { if(mode === "vo2") renderVo2(); });
 
 function startRide(resume){
   // Rad und seine Korrektur mit aufzeichnen – sonst ist später nicht nachvollziehbar, womit gerechnet wurde.
-  rec = resume || { start: Date.now(), mode, S: [], paused: false, rampT0: null, a: cfg.a, b: cfg.b };
+  rec = resume || { start: Date.now(), mode, S: [], paused: false, rampT0: null, a: cfg.a, b: cfg.b,
+                    ftp: mode === "vo2" ? vo2Ftp() : cfg.ftp };
   mode = rec.mode;
+  // Plan aus den Werten der Fahrt bauen, nicht aus den aktuellen Einstellungen – sonst
+  // würde eine Änderung mitten in der Fahrt die Abschnitte verschieben.
+  plan = rec.mode === "vo2" ? C.buildPlan(cfg, rec.ftp || cfg.ftp) : null;
   show("ride"); keepAwake();
   if(!tick) tick = setInterval(step, 1000);
   render();
@@ -665,7 +757,8 @@ function render(){
   const S = rec.S, n = S.length;
   // 3-s-Mittel für ruhige Anzeige
   const last3 = S.slice(-3).map(s => s.p), p3 = last3.length ? Math.round(last3.reduce((a,b)=>a+b,0)/last3.length) : live.pNow || 0;
-  const z = C.zoneOf(p3, cfg.ftp);
+  const ftpNow = (rec && rec.ftp) || cfg.ftp;
+  const z = C.zoneOf(p3, ftpNow);
   const ride = $("ride");
   ride.style.background = getComputedStyle(document.documentElement).getPropertyValue(ZCOL[z]);
   ride.classList.toggle("dark", z === 1 || z === 6 || z === 5);
@@ -678,7 +771,7 @@ function render(){
   const p = S.map(s=>s.p);
   $("rAvg").textContent = n ? Math.round(p.reduce((a,b)=>a+b,0)/n) : 0;
   $("rNp").textContent = Math.round(C.np(p));
-  $("rPct").textContent = Math.round(p3 / cfg.ftp * 100);
+  $("rPct").textContent = Math.round(p3 / ftpNow * 100);
   const src = fresh(live.pRaw, live.pT) !== null ? live.src : "⚠ keine Leistungsdaten";
   $("connInfo").textContent = src + (rec.a != null ? ` · a = ${rec.a}` : "");
   const tEl = $("rTarget");
@@ -689,6 +782,20 @@ function render(){
     else{
       const diff = p3 - rt.w, arrow = diff < -15 ? "▲ mehr" : diff > 15 ? "▼ weniger" : "✓";
       tEl.innerHTML = `Ziel <b class="num">${rt.w} W</b> <span class="arrow">${arrow}</span><small>Stufe ${rt.stage} · nächste in ${rt.left} s</small>`;
+    }
+  }else if(rec.mode === "vo2" && plan){
+    tEl.classList.remove("hidden");
+    const at = C.planAt(plan, n);
+    if(!at){
+      tEl.innerHTML = `Workout fertig <b class="num">✓</b><small>${fmt(plan.total)} · jetzt beenden</small>`;
+      tEl.classList.remove("work");
+    }else{
+      const diff = p3 - at.step.w, arrow = diff < -15 ? "▲ mehr" : diff > 15 ? "▼ weniger" : "✓";
+      // Im harten Block bekommt die Zielzeile einen Rahmen, damit ohne Brille erkennbar
+      // bleibt, ob gerade gedrückt oder erholt wird.
+      tEl.classList.toggle("work", at.step.kind === "work");
+      tEl.innerHTML = `${at.step.name} <b class="num">${at.step.w} W</b> <span class="arrow">${arrow}</span>`
+        + `<small>noch ${fmt(at.left)}` + (at.next ? ` · dann ${at.next.name} ${at.next.w} W` : " · letzter Abschnitt") + `</small>`;
     }
   }else if(rec.mode === "ftp20"){
     // Kein Zielwert: beim 20-min-Test fährt man, was man halten kann. Angezeigt wird nur,
@@ -723,13 +830,14 @@ function showSummary(){
   const S = rec.S;
   if(S.length < 10){ $("sumStats").innerHTML = "<p class='note'>Zu wenig Daten aufgezeichnet.</p>"; $("btnFit").disabled = true; return; }
   $("btnFit").disabled = false;
-  const s = C.summarize(S, cfg.ftp);
+  const s = C.summarize(S, rec.ftp || cfg.ftp);
   rec.sum = s;
   const st = [["Dauer", fmt(s.n)], ["Distanz", (s.dist/1000).toFixed(1)+" km"], ["Ø Leistung", Math.round(s.avg)+" W"],
     ["NP", Math.round(s.np)+" W"], ["Max", Math.round(s.max)+" W"], ["Arbeit", Math.round(s.work/1000)+" kJ"],
     ["IF / TSS", s.if.toFixed(2)+" / "+Math.round(s.tss)], ["Ø Puls", s.hrAvg ? Math.round(s.hrAvg) : "–"],
     ["Ø U/min", Math.round(s.cadAvg)], ["Beste 5 min", Math.round(s.best5)+" W"],
     ["Korrektur", `a = ${rec.a ?? "?"}${rec.b ? ", b = "+rec.b : ""}`]];
+  if(rec.ftp && rec.ftp !== cfg.ftp) st.push(["FTP dieser Fahrt", rec.ftp + " W"]);
   $("sumStats").innerHTML = st.map(([k,v]) => `<div class="stat"><span>${k}</span><b class="num">${v}</b></div>`).join("");
   const mx = Math.max(...s.zt, 1);
   $("sumZones").innerHTML = s.zt.map((t,i) => `<div class="zrow"><span class="zl">${C.ZONES[i][2]}</span><span class="bar"><i style="width:${t/mx*100}%;background:var(${ZCOL[i]})"></i></span><span class="zt">${fmt(t)}</span></div>`).join("");
@@ -744,7 +852,14 @@ function showSummary(){
     sug = { ftp: Math.round(0.75 * s.best1), txt: `Rampentest – beste 1 min ${Math.round(s.best1)} W`, formel: "0,75 × 1-min" };
   else if(rec.mode === "ftp20" && s.best20 > 0)
     sug = { ftp: Math.round(0.95 * s.best20), txt: `20-min-Test – beste 20 min ${Math.round(s.best20)} W`, formel: "0,95 × 20-min" };
-  if(rec.mode === "ftp20" && s.best20 === 0){
+  if(rec.mode === "vo2"){
+    // Kein FTP-Vorschlag aus einem Workout – nur zeigen, womit gerechnet wurde.
+    const abw = rec.ftp && rec.ftp !== cfg.ftp;
+    rr.innerHTML = `VO₂max 4×4 · ${Math.round(s.best1)} W beste 1 min<b class="num">${Math.round(s.np)} W NP</b>`
+      + `<small>gerechnet mit FTP ${rec.ftp || cfg.ftp} W`
+      + (abw ? ` (abweichend, gespeichert: ${cfg.ftp} W)` : "") + `</small>`;
+    rr.classList.remove("hidden");
+  }else if(rec.mode === "ftp20" && s.best20 === 0){
     // Unter 20 min gibt es kein 20-min-Mittel. Lieber sagen warum, als nichts zeigen.
     rr.innerHTML = `20-min-Test abgebrochen<b class="num">${fmt(s.n)}</b>
       <small>erst ab 20 min lässt sich ein FTP-Wert schätzen – FTP bleibt bei ${cfg.ftp} W</small>`;
@@ -762,8 +877,9 @@ function showSummary(){
 }
 
 async function saveFit(){
-  const s = rec.sum || C.summarize(rec.S, cfg.ftp);
-  const bytes = C.fitEncode(rec.S, s, cfg.ftp, rec.S[0].t);
+  const ftp = rec.ftp || cfg.ftp;
+  const s = rec.sum || C.summarize(rec.S, ftp);
+  const bytes = C.fitEncode(rec.S, s, ftp, rec.S[0].t);
   const d = new Date(rec.S[0].t), pad = x => String(x).padStart(2,"0");
   const name = `IC5_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.fit`;
   const file = new File([bytes], name, {type:"application/octet-stream"});

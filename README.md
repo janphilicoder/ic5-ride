@@ -16,7 +16,7 @@ Leistung korrigieren, virtuelle Distanz berechnen und als **FIT-Datei** (Indoor 
 2. Rad antreten (weckt die Konsole) → App → bei „Rad“ und „Brustgurt“ je auf **Verbinden**.
    Beim nächsten Mal docken beide von selbst an.
 3. Prüfen, ob U/min zum Treten passen (gekoppelt wird das *nächstgelegene* Rad, Geräte-Nr. wird gespeichert).
-4. Modus wählen (Freie Fahrt / Rampentest / 20-min-Test) → Start → Beenden → „FIT-Datei speichern / teilen“.
+4. Modus wählen (Freie Fahrt / Rampentest / 20-min-Test / VO₂max 4×4) → Start → Beenden → „FIT-Datei speichern / teilen“.
 5. Hochladen: **Teilen** bietet die Datei direkt der Garmin-Connect-App an. Erscheint sie dort nicht,
    speichern und über die Knöpfe „Garmin Connect öffnen“ bzw. „Strava öffnen“ von Hand importieren.
 
@@ -35,6 +35,7 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
 | Puls | **nur Brustgurt**: 0x180D auf einem eigenen Gurt-Gerät; das Rad wird nie nach HF gefragt. Bluetooth kennt keinen Schlagzähler, deshalb gilt ein über 20 s unveränderter Wert als eingefroren (Gurt abgelegt) und wird verworfen. |
 | Geschwindigkeit | meldet das Rad eine (FTMS-Feld „Instantaneous Speed“), gilt sie; sonst virtuell in der Ebene gerechnet: P = v·(½ρ·CdA·v² + Crr·m·g), ρ=1,2, CdA=0,32, Crr=0,004. Die Distanz summiert sich daraus Sekunde für Sekunde und landet so in der FIT-Datei. |
 | Auswertung | 7 Coggan-Zonen, NP (30-s-Mittel⁴), IF, TSS, Bestwerte 1/5/20 min |
+| VO₂max 4×4 | Norweger-Protokoll: 4 × 4 min bei 110 % FTP, dazwischen 3 min bei 50 %, davor 10 min Einfahren, danach 5 min Ausfahren (40 min gesamt). Wiederholungen, alle Zeiten und beide Prozentwerte sind in den Einstellungen änderbar; 0 min Ein- oder Ausfahren lässt den Abschnitt weg. Vor dem Start lässt sich eine **abweichende FTP nur für dieses Workout** eintragen – die Vorschau rechnet sofort mit, die gespeicherte FTP bleibt unberührt. Während der Fahrt: Abschnittsname, Zielwatt, Pfeil, Restzeit und der nächste Abschnitt; harte Blöcke bekommen einen Rahmen. Zonen, % FTP, Zusammenfassung und FIT-Datei rechnen mit der Workout-FTP. |
 | FTP-Tests | **Rampentest**: Start/Schritt einstellbar (Standard 100 W, +20 W/min), Vorschlag = 0,75 × beste 1-min-Leistung. **20-min-Test**: kein Zielwert, die App zeigt Restzeit und bisherigen Schnitt, Vorschlag = 0,95 × beste 20-min-Leistung (unter 20 min kein Vorschlag). Beides bleibt ein **Vorschlag** – übernommen wird er per Knopf, und die FTP ist in den Einstellungen jederzeit von Hand änderbar. |
 | Hochladen | **Vollautomatisch nicht möglich.** Garmins Connect-Developer-Programm nimmt seit 2026 keine neuen Anträge an (Stand 10.10.2026), und Strava kennt kein PKCE: der Token-Tausch verlangt ein Client-Secret, das eine Seite ohne Server nicht geheim halten kann. Deshalb Web Share API (`navigator.share`) als kürzester Weg plus Direktlinks zu beiden Import-Seiten. |
 | Export | eigener FIT-Encoder: file_id, event, record, lap, session (sport 2 / sub_sport 6), activity |
@@ -100,7 +101,7 @@ lassen sich dort ändern; der Laptop wird nur zum Ändern des Codes gebraucht.
   Connect-Developer-Programm nimmt seit 2026 keine neuen Anträge an, und Strava kennt kein PKCE:
   der Token-Tausch verlangt ein Client-Secret, das eine Seite ohne Server nicht geheim halten kann.
   Deshalb Teilen über die Web Share API plus Direktlinks zu beiden Import-Seiten.
-- [ ] Strukturierte Workouts mit Leistungszielen
+- [x] ~~Strukturierte Workouts mit Leistungszielen~~ – VO₂max 4×4 am 23.11.2026 eingebaut
 
 ## Werkzeuge
 - `tools/fit_power_fix.py` – korrigiert Leistung in bestehenden FIT-Dateien (`python fit_power_fix.py *.fit --scale 1.5`), inkl. NP/IF/TSS und CRC.
