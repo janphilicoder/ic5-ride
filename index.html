@@ -28,9 +28,13 @@ h1{font-size:22px;margin:4px 0 14px}
 h1 b{color:var(--acc)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
 .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:0 0 10px}
-.src{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.src{display:flex;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--line)}
 .src:first-of-type{border-top:0}
-.src .lbl{flex:1}
+.src .lbl{flex:1;min-width:0}
+.src .lbl small{overflow-wrap:anywhere}
+/* Zweiter Knopf ("Alle") bleibt schmal, damit die Zeile auf einem 390er Schirm passt. */
+.src button{flex:none;white-space:nowrap}
+.src .alt{padding-left:10px;padding-right:10px;opacity:.75}
 .src .lbl small{display:block;color:var(--dim);font-size:13px;margin-top:2px}
 .dot{width:12px;height:12px;border-radius:50%;background:var(--bad);flex:none}
 .dot.on{background:var(--ok)} .dot.wait{background:#f2c230}
@@ -43,8 +47,10 @@ h1 b{color:var(--acc)}
 .live{display:flex;justify-content:space-around;text-align:center;padding:6px 0 2px}
 .live div span{display:block;font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
 .live .num{font-size:30px}
-.mode{display:flex;gap:8px;margin-bottom:12px}
-.mode button{flex:1;padding:14px 8px;border-radius:12px;background:#242936;border:2px solid transparent;font-weight:700}
+/* Sechs Modi passen nicht in eine Zeile: zwei Spalten, damit auf einem 390er Schirm
+   nichts hinausläuft und jeder Knopf groß genug zum Treffen bleibt. */
+.mode{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.mode button{padding:14px 8px;border-radius:12px;background:#242936;border:2px solid transparent;font-weight:700}
 .mode button.sel{border-color:var(--acc)}
 label.f{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:15px}
 label.f:first-of-type{border-top:0}
@@ -131,19 +137,24 @@ pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--dim);ma
       <i class="dot" id="dPow"></i>
       <div class="lbl">Rad – Leistung, Trittfrequenz <small id="sPow">nicht verbunden</small></div>
       <button class="btn small" id="btnBike">Verbinden</button>
+      <button class="btn small alt" id="btnBikeAll" title="Jedes Gerät in Reichweite zeigen">Alle</button>
     </div>
     <div class="src">
       <i class="dot" id="dHr"></i>
       <div class="lbl">Brustgurt – Puls <small id="sHr">nicht verbunden</small></div>
       <button class="btn small" id="btnHr">Verbinden</button>
+      <button class="btn small alt" id="btnHrAll" title="Jedes Gerät in Reichweite zeigen">Alle</button>
     </div>
     <div class="live">
       <div><span>Watt</span><b class="num" id="lP">–</b></div>
       <div><span>U/min</span><b class="num" id="lC">–</b></div>
       <div><span>Puls</span><b class="num" id="lH">–</b></div>
     </div>
-    <p class="note">Erst antreten, damit die Konsole aufwacht, dann verbinden – Bluetooth zeigt die Räder mit Namen,
-      also das richtige aus der Liste wählen. Prüfe danach, ob die U/min zu deinem Treten passen.
+    <p class="note">Erst antreten, damit die Konsole aufwacht, dann verbinden.
+      Steht das Rad nicht in der Liste, <b>„Alle"</b> drücken – dann zeigt Chrome jedes Gerät in
+      Reichweite. Das ist nötig, wenn die Konsole ihre Dienste nicht im Advertising mitsendet.
+      Danach im Diagnose-Bereich nachsehen, welche Dienste sie anbietet.
+      Prüfe nach dem Verbinden, ob die U/min zu deinem Treten passen.
       Der Puls kommt <b>nur</b> vom Brustgurt; eine Herzfrequenz vom Rad wird verworfen.
       Beim nächsten Mal verbinden sich beide Geräte von selbst.</p>
   </div>
@@ -701,19 +712,28 @@ function bleState(which, text, state){
   $(s).textContent = text; $(d).className = "dot" + (state ? " " + state : "");
 }
 
-async function bleConnect(which){
+/* Dienste, die wir am Rad bzw. am Gurt lesen wollen. Jeder Dienst, der später gelesen
+   wird, muss hier stehen – sonst verweigert der Browser den Zugriff darauf. */
+const SRV_BIKE = [0x1826, 0x1818, 0x1816];
+const SRV_HR   = [0x180D];
+
+/* `alle = true` zeigt jedes Gerät in Reichweite statt nur die mit passendem Dienst.
+   Nötig, weil viele Konsolen ihre Dienste nicht im Advertising mitsenden: Chrome
+   blendet sie dann im gefilterten Dialog aus, obwohl sie die Daten liefern. */
+async function bleConnect(which, alle){
   if(!navigator.bluetooth){ warn("Dieser Browser kann kein Bluetooth. Bitte Chrome auf Android, Seite über https."); return; }
   const hrOnly = which === "hr";
+  const opt = hrOnly ? SRV_HR : SRV_BIKE;
   try{
-    const dev = await navigator.bluetooth.requestDevice(hrOnly
-      ? { filters: [{services:[0x180D]}] }
-      : { filters: [{services:[0x1826]}, {services:[0x1818]}], optionalServices: [0x1826, 0x1818] });
+    const dev = await navigator.bluetooth.requestDevice(alle
+      ? { acceptAllDevices: true, optionalServices: opt }
+      : { filters: opt.map(u => ({ services: [u] })), optionalServices: opt });
     bleState(which, (dev.name || "Gerät") + " – verbinde …", "wait");
     const got = await bleAttach(dev, hrOnly);
     if(!got.length){
       bleState(which, (dev.name || "Gerät") + " – keine Standarddaten!", "");
       warn(hrOnly ? "Dieser Gurt sendet keinen Standard-Herzfrequenzdienst."
-                  : "Das Rad sendet weder FTMS (0x1826) noch Cycling Power (0x1818).");
+                  : "Dieses Gerät liefert weder FTMS (0x1826) noch Cycling Power (0x1818). Im Diagnose-Log steht, welche Dienste es anbietet.");
       return;
     }
     ble[hrOnly ? "hr" : "bike"] = dev;
@@ -736,6 +756,12 @@ async function bleConnect(which){
 // Dienste abonnieren. Gibt die Namen der Dienste zurück, die tatsächlich Daten liefern.
 async function bleAttach(dev, hrOnly){
   const srv = await dev.gatt.connect(), got = [];
+  // Alle angebotenen Dienste ins Log – nur so lässt sich klären, was eine Konsole kann,
+  // die keinen der Standarddienste liefert.
+  try{
+    const alle = await srv.getPrimaryServices();
+    log(`${dev.name || "Gerät"} bietet: ` + alle.map(x => x.uuid.replace(/^0000|-0000-1000-8000-00805f9b34fb$/g, "")).join(", "));
+  }catch(e){ log("Dienste nicht lesbar: " + e.message); }
   const sub = async (svc, ch, name, fn) => {
     try{
       const c = await (await srv.getPrimaryService(svc)).getCharacteristic(ch);
@@ -1095,8 +1121,10 @@ async function keepAwake(){ try{ if("wakeLock" in navigator) wakeLock = await na
 document.addEventListener("visibilitychange", () => { if(tick && document.visibilityState === "visible") keepAwake(); });
 
 /* ---------- Buttons ---------- */
-$("btnBike").onclick = () => bleConnect("bike");
-$("btnHr").onclick = () => bleConnect("hr");
+$("btnBike").onclick = () => bleConnect("bike", false);
+$("btnBikeAll").onclick = () => bleConnect("bike", true);
+$("btnHr").onclick = () => bleConnect("hr", false);
+$("btnHrAll").onclick = () => bleConnect("hr", true);
 $("btnDemo").onclick = demo;
 $("btnLogCopy").onclick = copyReport;
 $("btnStart").onclick = () => startRide(null);
